@@ -60,7 +60,7 @@
 | Стили и цвета | `frontend/css/style.css`. Цвета — токены в начале файла: `--green` (основной синий), `--gold` (зелёный акцент), `--red`, `--amber`, `--ink`, `--ink-soft`, `--line`, `--card`, `--paper` |
 | Левое меню | копия блока `<aside class="sidebar">` есть в КАЖДОЙ странице `frontend/*.html` (кроме `privacy-policy.html`) |
 | Данные и знания | `frontend/knowledge.html`, `js/knowledge.js`; онтологии `data/ontologies.json` + графы `data/ontologies/objects/`; RAG-базы `data/rag_bases.json` + документы `data/rag/corpus/{id}/*.md`. Демо-каталог собирается скриптом `scripts/seed_innovation_knowledge.py` (онтологии — `scripts/seed_knowledge/ontologies.py`): правь там и перезапусти скрипт |
-| Витрина механизмов поддержки | `frontend/showcase.html`, `js/showcase.js`; механизмы, контуры и веса — `data/support_showcase.json` |
+| Витрина механизмов поддержки | `frontend/showcase.html`, `js/showcase.js`; справочник мер (этапы, типы, меры) — `frontend/js/support_ecosystem_data.js` (НЕ в `data/`: папка `data/` в `.gitignore`, новые файлы там не попадают в репозиторий без исключения) |
 | Агенты | каталог `data/skills.json`, тексты агентов `data/skills/*.md`; страница `frontend/agents.html`, `js/agents.js`, шаблоны конструктора `js/agent_templates.js` |
 | Модели | `frontend/models.html`; встроенные модели офиса проректора `frontend/js/innovation_models.js` (массив MODELS); открытые модели `data/models.json` |
 | Полигоны | `frontend/polygons.html`, `js/polygons.js`; примеры `data/polygons/pg-*.json`; модель `api/runtime/polygons.py` |

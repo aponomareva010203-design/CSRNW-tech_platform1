@@ -14,22 +14,35 @@ import launch  # noqa: E402
 from api.runtime import text_search  # noqa: E402
 
 
-def test_showcase_data_is_consistent():
-    data = json.loads((DATA / "support_showcase.json").read_text(encoding="utf-8"))
-    contours = {c["id"] for c in data["contours"]}
-    ids = [m["id"] for m in data["mechanisms"]]
-    assert len(ids) == len(set(ids)) >= 20
-    for m in data["mechanisms"]:
-        assert m["contour"] in contours, m["id"]
-        assert set(m["weights"]) == {"reach", "mtk"}
-        assert all(1 <= v <= 3 for v in m["weights"].values())
-        assert m["name"] and m["metric"] and m["action"]
-    assert {lens["id"] for lens in data["lenses"]} == {"reach", "mtk"}
-    assert [s["value"] for s in data["statuses"]] == [0, 1, 2, 3]
-    demo = data["demo_profile"]["statuses"]
-    assert set(demo) <= set(ids) and all(v in (0, 1, 2, 3) for v in demo.values())
-    # каждый контур представлен механизмами
-    assert {m["contour"] for m in data["mechanisms"]} == contours
+def _ecosystem():
+    text = (ROOT / "frontend" / "js" / "support_ecosystem_data.js").read_text(encoding="utf-8")
+    body = text.split("window.AIOS_SUPPORT_ECOSYSTEM = ", 1)[1].rstrip().rstrip(";")
+    return json.loads(body)
+
+
+def test_ecosystem_data_is_consistent():
+    data = _ecosystem()
+    stages = [s["id"] for s in data["stages"]]
+    cats = {c["id"] for c in data["categories"]}
+    levels = {lv["id"] for lv in data["levels"]}
+    ids = [m["id"] for m in data["measures"]]
+    assert len(ids) == len(set(ids)) >= 40
+    for m in data["measures"]:
+        assert m["category"] in cats and m["level"] in levels, m["id"]
+        assert stages.index(m["stage_from"]) <= stages.index(m["stage_to"]), m["id"]
+        assert m["name"] and m["operator"] and m["description"], m["id"]
+        assert not m["url"] or m["url"].startswith("https://"), m["id"]
+    # каждый тип мер и каждый этап пути представлены
+    assert {m["category"] for m in data["measures"]} == cats
+    covered = set()
+    for m in data["measures"]:
+        covered.update(stages[stages.index(m["stage_from"]):stages.index(m["stage_to"]) + 1])
+    assert covered == set(stages)
+
+
+def test_showcase_page_loads_data_script_before_logic():
+    html = (ROOT / "frontend" / "showcase.html").read_text(encoding="utf-8")
+    assert html.index("js/support_ecosystem_data.js") < html.index("js/showcase.js")
 
 
 def test_showcase_page_in_every_sidebar():
@@ -70,3 +83,33 @@ def test_launch_skips_busy_foreign_port():
         port = busy.getsockname()[1]
         chosen, running = launch.pick_port(port)
         assert chosen != port and not running
+
+
+def test_scheduler_loop_stops_on_cancel(monkeypatch):
+    """Ctrl+C: фоновый планировщик должен завершаться по отмене, а не
+    засыпать снова (иначе сервер висит на «Waiting for application shutdown»)."""
+    import asyncio
+
+    from api.runtime import user_context
+
+    calls = []
+
+    async def fake_job():
+        calls.append(1)
+
+    monkeypatch.setattr(user_context, "STARTUP_DELAY", 0)
+    monkeypatch.setattr(user_context, "_next_run_delay", lambda: 3600)
+    monkeypatch.setattr(user_context, "run_user_context_job", fake_job)
+
+    async def scenario():
+        task = asyncio.create_task(user_context.scheduler_loop())
+        await asyncio.sleep(0.05)
+        task.cancel()
+        try:
+            await asyncio.wait_for(task, timeout=2)
+        except asyncio.CancelledError:
+            pass
+        return task.cancelled()
+
+    assert asyncio.run(scenario()) is True
+    assert calls == []  # отмена не запускает внеочередной проход

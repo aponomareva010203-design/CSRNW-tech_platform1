@@ -65,72 +65,41 @@
 
   <script src="js/sidebar.js?v=20260925zq"></script>
 
-  <div class="page">
+  <div class="page page--showcase">
 
   <section class="section-head">
     <a class="backlink" href="index.html">← AIOS · Инновации университета</a>
     <h1>Витрина механизмов поддержки</h1>
     <div class="rule"></div>
-    <p class="section-lead">Какие механизмы поддержки технологического предпринимательства есть в вузе и насколько они работают. Цель поддержки сменилась: раньше — вовлечение и максимальный охват, теперь — фокусировка на сформированном активе вуза, достройка предпринимательской экосистемы и выход в создание МТК. Отметьте статус каждого механизма — витрина покажет готовность экосистемы под новую цель, разрывы на пути «актив → МТК» и где можно высвободить ресурсы.</p>
   </section>
 
-  <section class="page-section sc-toolbar" aria-label="Профиль вуза">
-    <div class="sc-field">
-      <label for="scProfile">Вуз (профиль)</label>
-      <div class="sc-inline">
-        <select id="scProfile"></select>
-        <button class="btn-register" type="button" id="scAdd">+ Новый вуз</button>
-        <button class="btn-register" type="button" id="scRename">Переименовать</button>
-        <button class="btn-register" type="button" id="scDelete">Удалить</button>
-      </div>
+  <section class="page-section sc-toolbar" aria-label="Фильтры и настройка">
+    <input type="search" id="scSearch" class="sc-search" placeholder="Найти меру, оператора, аудиторию…" aria-label="Поиск по мерам">
+    <div class="sc-chips" id="scLevels" aria-label="Уровень"></div>
+    <div class="sc-tools">
+      <button class="btn-primary" type="button" id="scEditToggle" aria-pressed="false">Настроить экосистему</button>
     </div>
-    <div class="sc-field">
-      <span class="sc-label">Цель поддержки</span>
-      <div class="sc-lens" id="scLens" role="radiogroup" aria-label="Цель поддержки"></div>
+  </section>
+
+  <section class="sc-editbar" id="scEditBar" hidden>
+    <p>Режим настройки: щёлкните меру, чтобы изменить её; «×» на мере — скрыть её из экосистемы. Названия типов и этапов меняются щелчком по ним. Настройки сохраняются в этом браузере.</p>
+    <div class="sc-editbar-actions">
+      <button class="btn-register" type="button" id="scAddMeasure">+ Добавить меру</button>
+      <button class="btn-register" type="button" id="scAddCategory">+ Добавить тип мер</button>
+      <button class="btn-register" type="button" id="scShowHidden">Скрытые меры (<span id="scHiddenCount">0</span>)</button>
+      <button class="btn-register" type="button" id="scReset">Вернуть исходную экосистему</button>
     </div>
-    <div class="sc-actions">
-      <button class="btn-register" type="button" id="scCopy" title="Скопировать сводку и вставить в чат с агентом «Аналитик экосистемы»">Сводка для агента</button>
-      <button class="btn-register" type="button" id="scCsv">Скачать CSV</button>
-      <button class="btn-register" type="button" id="scExport">Сохранить JSON</button>
-      <label class="btn-register sc-file">Загрузить JSON<input type="file" id="scImport" accept=".json,application/json" hidden></label>
-    </div>
-    <p class="sc-status" id="scStatus" role="status"></p>
   </section>
 
   <section class="page-section">
-    <div class="kpi-row sc-kpi" id="scKpi"></div>
-    <p class="sc-verdict" id="scVerdict"></p>
+    <div class="sc-legend" id="scLegend" aria-label="Типы мер"></div>
+    <div class="sc-map-wrap"><div class="sc-map" id="scMap"></div></div>
+    <p class="sc-foot" id="scFoot"></p>
   </section>
 
-  <section class="page-section dash-grid">
-    <article class="widget">
-      <header class="widget-head">
-        <div><h2>Профиль по контурам экосистемы</h2>
-        <p class="widget-sub">Готовность каждого контура: синий — под новую цель (актив → МТК), серый — под прежнюю (охват)</p></div>
-      </header>
-      <div id="scContours" class="sc-bars"></div>
-    </article>
-    <article class="widget">
-      <header class="widget-head">
-        <div><h2>Разрывы на пути «актив → МТК»</h2>
-        <p class="widget-sub">Важные для выхода в МТК механизмы, которых нет или они работают формально</p></div>
-      </header>
-      <ol id="scGaps" class="sc-list"></ol>
-    </article>
-    <article class="widget widget--wide">
-      <header class="widget-head">
-        <div><h2>Где можно высвободить ресурсы</h2>
-        <p class="widget-sub">Механизмы охвата, которые работают сильно, но мало влияют на выход в МТК: их стоит перенастроить на технологические пакеты вуза</p></div>
-      </header>
-      <ul id="scFree" class="sc-list sc-list--free"></ul>
-    </article>
-  </section>
-
-  <section class="page-section">
-    <div class="sc-filter" id="scFilter" role="tablist" aria-label="Контуры экосистемы"></div>
-    <div id="scMechs"></div>
-    <p class="sc-foot">Справочные материалы: RAG-база «Предпринимательская экосистема вуза: механизмы поддержки и самооценка» и онтология механизмов поддержки в разделе <a href="knowledge.html">«Данные и знания»</a>. Отметки хранятся в этом браузере — сохраните JSON, чтобы перенести их или обсудить с коллегами.</p>
-  </section>
+  <dialog class="sc-dialog" id="scDialog">
+    <form method="dialog" class="sc-dialog-body" id="scDialogBody"></form>
+  </dialog>
 
 </div>
 </div>
@@ -139,7 +108,8 @@
 <script src="js/auth.js?v=20261029a"></script>
 <script src="js/agent_views.js?v=20260929m"></script>
 <script src="js/thinking.js?v=20260925zq"></script>
-<script src="js/showcase.js?v=20261105a"></script>
+<script src="js/support_ecosystem_data.js?v=20261105b"></script>
+<script src="js/showcase.js?v=20261105b"></script>
 <script src="js/workspace.js?v=20261029a"></script>
 </body>
 </html>

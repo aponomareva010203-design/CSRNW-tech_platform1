@@ -279,6 +279,27 @@ def wait_and_open(port: int, choice: str, browsers: dict[str, str], timeout: int
     print(f"\n Сервер долго не отвечает. Попробуйте открыть вручную: {url}\n")
 
 
+def enable_console_colors() -> bool:
+    """Цвета в логах сервера. В консоли Windows включаем обработку
+    ANSI-кодов; не вышло — печатаем без цветов, чтобы не было «[32mINFO[0m»."""
+    if not sys.stdout or not sys.stdout.isatty():
+        return False
+    if not sys.platform.startswith("win"):
+        return True
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+        mode = ctypes.c_uint32()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        # ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+        return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
+    except Exception:
+        return False
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Запуск AIOS и открытие браузера")
     ap.add_argument("--port", type=int, default=int(os.environ.get("AIOS_PORT", DEFAULT_PORT)))
@@ -322,7 +343,10 @@ def main(argv: list[str] | None = None) -> int:
 
     import uvicorn
 
-    uvicorn.run("api.main:app", host=HOST, port=port)
+    # timeout_graceful_shutdown: открытые вкладки и потоки чата не держат
+    # остановку по Ctrl+C дольше нескольких секунд
+    uvicorn.run("api.main:app", host=HOST, port=port, use_colors=enable_console_colors(),
+                timeout_graceful_shutdown=3)
     return 0
 
 

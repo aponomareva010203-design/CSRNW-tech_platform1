@@ -24,7 +24,6 @@
 """
 
 import asyncio
-import contextlib
 import datetime as dt
 import hashlib
 import json
@@ -373,8 +372,9 @@ async def scheduler_loop() -> None:
             get_settings().user_context_run_at,
             delay,
         )
-        with contextlib.suppress(asyncio.CancelledError):
-            await asyncio.sleep(delay)
+        # отмену (остановка сервера, Ctrl+C) не глушим: иначе цикл не
+        # завершается и сервер зависает на «Waiting for application shutdown»
+        await asyncio.sleep(delay)
         try:
             await run_user_context_job()
         except asyncio.CancelledError:
