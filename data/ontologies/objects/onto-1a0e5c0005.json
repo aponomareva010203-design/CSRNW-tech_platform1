@@ -1,0 +1,577 @@
+{
+  "id": "onto-1a0e5c0005",
+  "name": "Онтология интеллектуальных активов и их оценки",
+  "domain": "Интеллектуальные активы вуза для технологического предпринимательства: состав, цели и методы оценки, решения",
+  "description": "Модель для формирования методик оценки интеллектуальных активов (ИА) вуза. ИА шире охраняемых РИД: патенты, программы и базы данных, ноу-хау, данные и датасеты, компетенции научных коллективов, отношения с индустриальными партнёрами, научная репутация. Оценка бывает неденежной (скоринг: правовая сила, технологическая готовность, рынок, команда) и стоимостной (затратный, сравнительный, доходный подходы по ФСО № 11; метод освобождения от роялти, DCF, реальные опционы). Цель оценки задаёт метод: поддерживать патент или отказаться, лицензировать, внести в капитал МТК, отобрать в стартап-студию, поставить на учёт как НМА. Согласована с ISO 56005 и Кодексом практики ЕС по управлению интеллектуальными активами (2023/499).",
+  "author": "Команда AIOS",
+  "tags": [
+    "интеллектуальные активы",
+    "оценка РИД",
+    "методика оценки",
+    "НМА",
+    "МТК",
+    "ФСО № 11"
+  ],
+  "classes": [
+    {
+      "id": "asset",
+      "name": "Интеллектуальный актив",
+      "description": "Нематериальный результат или ресурс вуза, способный создавать ценность в технологическом предпринимательстве.",
+      "synonyms": [
+        "ИА",
+        "intellectual asset"
+      ],
+      "attributes": [
+        {
+          "id": "title",
+          "name": "Название",
+          "type": "string"
+        },
+        {
+          "id": "unit",
+          "name": "Подразделение",
+          "type": "string"
+        },
+        {
+          "id": "created",
+          "name": "Год создания",
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "id": "protected_rid",
+      "name": "Охраняемый РИД",
+      "description": "Объект с правовой охраной (ст. 1225 ГК РФ).",
+      "parent": "asset",
+      "synonyms": [
+        "объект ИС"
+      ]
+    },
+    {
+      "id": "invention",
+      "name": "Изобретение / полезная модель",
+      "description": "Техническое решение под патентной охраной.",
+      "parent": "protected_rid",
+      "attributes": [
+        {
+          "id": "patent_no",
+          "name": "Номер патента",
+          "type": "string"
+        },
+        {
+          "id": "valid_until",
+          "name": "Действует до",
+          "type": "datetime"
+        },
+        {
+          "id": "claims",
+          "name": "Число пунктов формулы",
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "id": "design",
+      "name": "Промышленный образец",
+      "description": "Охраняемое решение внешнего вида изделия.",
+      "parent": "protected_rid"
+    },
+    {
+      "id": "software",
+      "name": "Программа для ЭВМ / база данных",
+      "description": "Объект авторского права; регистрация в Роспатенте добровольна.",
+      "parent": "protected_rid"
+    },
+    {
+      "id": "knowhow",
+      "name": "Ноу-хау",
+      "description": "Сведения, охраняемые режимом коммерческой тайны.",
+      "parent": "protected_rid",
+      "synonyms": [
+        "секрет производства"
+      ]
+    },
+    {
+      "id": "trademark",
+      "name": "Товарный знак",
+      "description": "Средство индивидуализации продукта или стартапа.",
+      "parent": "protected_rid"
+    },
+    {
+      "id": "data_asset",
+      "name": "Данные и датасеты",
+      "description": "Экспериментальные данные, размеченные выборки, модели машинного обучения.",
+      "parent": "asset",
+      "synonyms": [
+        "данные",
+        "датасет",
+        "ML-модель"
+      ]
+    },
+    {
+      "id": "competence",
+      "name": "Компетенции научного коллектива",
+      "description": "Уникальные знания и навыки команды: то, что нельзя передать лицензией без людей.",
+      "parent": "asset",
+      "synonyms": [
+        "человеческий капитал",
+        "научная школа"
+      ]
+    },
+    {
+      "id": "relational",
+      "name": "Отношения с партнёрами",
+      "description": "Договоры НИОКР, пилоты, письма поддержки, доступ к заказчикам.",
+      "parent": "asset",
+      "synonyms": [
+        "реляционный капитал",
+        "индустриальные связи"
+      ]
+    },
+    {
+      "id": "reputation",
+      "name": "Научная репутация и бренд",
+      "description": "Публикации, цитируемость, известность лаборатории в отрасли.",
+      "parent": "asset"
+    },
+    {
+      "id": "rights_holder",
+      "name": "Правообладатель",
+      "description": "Вуз, соавторы-организации или созданная компания.",
+      "synonyms": [
+        "владелец прав"
+      ]
+    },
+    {
+      "id": "author_team",
+      "name": "Авторский коллектив",
+      "description": "Авторы РИД и носители компетенций; ключ к передаче технологии.",
+      "attributes": [
+        {
+          "id": "ready_to_found",
+          "name": "Готовы к предпринимательству",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "id": "legal_status",
+      "name": "Правовой статус",
+      "description": "Заявка, патент, срок действия, территория, пошлины, обременения (лицензии).",
+      "attributes": [
+        {
+          "id": "territory",
+          "name": "Территория",
+          "type": "string"
+        },
+        {
+          "id": "fee",
+          "name": "Пошлины в год, тыс. ₽",
+          "type": "float"
+        },
+        {
+          "id": "encumbered",
+          "name": "Есть лицензии",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "id": "readiness",
+      "name": "Уровень готовности",
+      "description": "УГТ/TRL 1–9 (ГОСТ Р 58048-2017) и смежные шкалы MRL, CRL, IRL.",
+      "synonyms": [
+        "УГТ",
+        "TRL"
+      ],
+      "attributes": [
+        {
+          "id": "level",
+          "name": "Уровень",
+          "type": "int"
+        }
+      ]
+    },
+    {
+      "id": "market",
+      "name": "Рынок применения",
+      "description": "Отрасль, сегмент, объём рынка, заказчики, аналоги и конкуренты.",
+      "attributes": [
+        {
+          "id": "tam",
+          "name": "Объём рынка, млн ₽",
+          "type": "float"
+        }
+      ]
+    },
+    {
+      "id": "valuation",
+      "name": "Оценка интеллектуального актива",
+      "description": "Процедура определения ценности ИА под конкретную цель.",
+      "synonyms": [
+        "оценка РИД",
+        "оценка ИС"
+      ],
+      "attributes": [
+        {
+          "id": "date",
+          "name": "Дата",
+          "type": "datetime"
+        },
+        {
+          "id": "result",
+          "name": "Результат",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "id": "purpose",
+      "name": "Цель оценки",
+      "description": "Решение, ради которого проводится оценка: поддержание/отказ, лицензия, вклад в капитал МТК, отбор в студию, учёт НМА, привлечение инвестиций, расчёт вознаграждения.",
+      "attributes": [
+        {
+          "id": "kind",
+          "name": "Вид",
+          "type": "enum"
+        }
+      ]
+    },
+    {
+      "id": "scoring",
+      "name": "Неденежная (скоринговая) оценка",
+      "description": "Балльная оценка по критериям с весами; применяется для приоритизации портфеля и отбора проектов.",
+      "parent": "valuation",
+      "synonyms": [
+        "скоринг",
+        "экспресс-оценка"
+      ]
+    },
+    {
+      "id": "monetary",
+      "name": "Стоимостная оценка",
+      "description": "Определение стоимости права в рублях; для сделок и вкладов — отчёт оценщика.",
+      "parent": "valuation",
+      "synonyms": [
+        "рыночная стоимость"
+      ]
+    },
+    {
+      "id": "approach",
+      "name": "Подход к оценке стоимости",
+      "description": "Затратный, сравнительный или доходный подход (ФСО V, ФСО № 11)."
+    },
+    {
+      "id": "method",
+      "name": "Метод оценки",
+      "description": "Конкретная процедура: освобождение от роялти, DCF, реальные опционы, затраты замещения, сравнение со сделками, правило долей прибыли.",
+      "attributes": [
+        {
+          "id": "inputs",
+          "name": "Исходные данные",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "id": "criterion",
+      "name": "Критерий оценки",
+      "description": "Показатель скоринга: сила охраны, широта формулы, УГТ, размер рынка, наличие партнёра, готовность команды, затраты на поддержание.",
+      "attributes": [
+        {
+          "id": "weight",
+          "name": "Вес",
+          "type": "float"
+        },
+        {
+          "id": "scale",
+          "name": "Шкала",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "id": "score",
+      "name": "Балл по критерию",
+      "description": "Значение критерия для конкретного актива с обоснованием.",
+      "attributes": [
+        {
+          "id": "value",
+          "name": "Балл",
+          "type": "float"
+        },
+        {
+          "id": "evidence",
+          "name": "Обоснование",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "id": "standard",
+      "name": "Стандарт или нормативный акт",
+      "description": "ФСО № 11, ФСО I–VI, ФСБУ 14/2022, СГС «НМА», ГОСТ Р 58048-2017, ISO 56005, IVS 210, DIN 77100, Рекомендация ЕС 2023/499.",
+      "synonyms": [
+        "норматив"
+      ]
+    },
+    {
+      "id": "methodology",
+      "name": "Методика оценки вуза",
+      "description": "Утверждённый локальный документ: цели, критерии, веса, пороги, роли, периодичность, формы.",
+      "attributes": [
+        {
+          "id": "version",
+          "name": "Версия",
+          "type": "string"
+        },
+        {
+          "id": "approved",
+          "name": "Утверждена",
+          "type": "datetime"
+        }
+      ]
+    },
+    {
+      "id": "commission",
+      "name": "Комиссия по интеллектуальной собственности",
+      "description": "Коллегиальный орган вуза, принимающий решения по итогам оценки."
+    },
+    {
+      "id": "valuer",
+      "name": "Оценщик",
+      "description": "Член СРО оценщиков; обязателен для отчёта о рыночной стоимости (сделки, вклады в капитал).",
+      "synonyms": [
+        "независимый оценщик"
+      ]
+    },
+    {
+      "id": "decision",
+      "name": "Управленческое решение",
+      "description": "Поддерживать, развивать, лицензировать, создать МТК, отчудить, отказаться.",
+      "attributes": [
+        {
+          "id": "option",
+          "name": "Вариант",
+          "type": "enum"
+        }
+      ]
+    },
+    {
+      "id": "path",
+      "name": "Путь коммерциализации",
+      "description": "Лицензия, вклад в капитал МТК, НИОКР по заказу, отчуждение, стартап-студия."
+    }
+  ],
+  "relations": [
+    {
+      "id": "held_by",
+      "name": "принадлежит",
+      "domain_class": "asset",
+      "range_class": "rights_holder"
+    },
+    {
+      "id": "carried_by",
+      "name": "носители",
+      "domain_class": "asset",
+      "range_class": "author_team"
+    },
+    {
+      "id": "has_status",
+      "name": "имеет правовой статус",
+      "domain_class": "protected_rid",
+      "range_class": "legal_status"
+    },
+    {
+      "id": "at_readiness",
+      "name": "на уровне готовности",
+      "domain_class": "asset",
+      "range_class": "readiness"
+    },
+    {
+      "id": "applied_in",
+      "name": "применяется на рынке",
+      "domain_class": "asset",
+      "range_class": "market"
+    },
+    {
+      "id": "evaluated",
+      "name": "оценивается",
+      "domain_class": "asset",
+      "range_class": "valuation"
+    },
+    {
+      "id": "for_purpose",
+      "name": "проводится с целью",
+      "domain_class": "valuation",
+      "range_class": "purpose"
+    },
+    {
+      "id": "uses_approach",
+      "name": "использует подход",
+      "domain_class": "monetary",
+      "range_class": "approach"
+    },
+    {
+      "id": "uses_method",
+      "name": "использует метод",
+      "domain_class": "approach",
+      "range_class": "method"
+    },
+    {
+      "id": "by_criterion",
+      "name": "по критерию",
+      "domain_class": "scoring",
+      "range_class": "criterion"
+    },
+    {
+      "id": "gives_score",
+      "name": "даёт балл",
+      "domain_class": "criterion",
+      "range_class": "score"
+    },
+    {
+      "id": "complies",
+      "name": "соответствует стандарту",
+      "domain_class": "methodology",
+      "range_class": "standard"
+    },
+    {
+      "id": "defines",
+      "name": "задаёт процедуру",
+      "domain_class": "methodology",
+      "range_class": "valuation"
+    },
+    {
+      "id": "performed_by",
+      "name": "выполняется",
+      "domain_class": "monetary",
+      "range_class": "valuer"
+    },
+    {
+      "id": "reviewed_by",
+      "name": "рассматривается",
+      "domain_class": "valuation",
+      "range_class": "commission"
+    },
+    {
+      "id": "leads_to",
+      "name": "приводит к решению",
+      "domain_class": "valuation",
+      "range_class": "decision"
+    },
+    {
+      "id": "chooses_path",
+      "name": "выбирает путь",
+      "domain_class": "decision",
+      "range_class": "path"
+    },
+    {
+      "id": "bundled_with",
+      "name": "передаётся вместе с",
+      "domain_class": "protected_rid",
+      "range_class": "competence"
+    }
+  ],
+  "competency_questions": [
+    {
+      "id": "cq-1",
+      "question": "Какие интеллектуальные активы вуза, кроме патентов, стоит включить в оценку для техпреда?",
+      "coverage": [
+        "asset",
+        "data_asset",
+        "competence",
+        "relational"
+      ]
+    },
+    {
+      "id": "cq-2",
+      "question": "Какой метод оценки выбрать, если цель — вклад права использования в капитал МТК?",
+      "coverage": [
+        "purpose",
+        "monetary",
+        "method",
+        "valuer"
+      ]
+    },
+    {
+      "id": "cq-3",
+      "question": "По каким критериям и с какими весами отбирать РИД в стартап-студию?",
+      "coverage": [
+        "scoring",
+        "criterion",
+        "score"
+      ]
+    },
+    {
+      "id": "cq-4",
+      "question": "Какие патенты имеют низкий балл и высокие пошлины — кандидаты на отказ?",
+      "coverage": [
+        "invention",
+        "legal_status",
+        "score",
+        "decision"
+      ]
+    },
+    {
+      "id": "cq-5",
+      "question": "Каким стандартам должна соответствовать методика оценки ИА вуза?",
+      "coverage": [
+        "methodology",
+        "standard"
+      ]
+    },
+    {
+      "id": "cq-6",
+      "question": "Какие активы передаются только вместе с командой и как это учесть при создании МТК?",
+      "coverage": [
+        "competence",
+        "author_team",
+        "path"
+      ]
+    }
+  ],
+  "rag_hints": {
+    "extraction_targets": [
+      "asset",
+      "purpose",
+      "approach",
+      "method",
+      "criterion",
+      "standard",
+      "decision"
+    ],
+    "retrieval_paths": [
+      "asset → evaluated → valuation → for_purpose → purpose",
+      "monetary → uses_approach → approach → uses_method → method",
+      "scoring → by_criterion → criterion"
+    ],
+    "sources": [
+      "ФСО № 11 (приказ Минэкономразвития № 385)",
+      "ФСБУ 14/2022",
+      "ISO 56005:2020",
+      "Рекомендация ЕС 2023/499",
+      "Методика оценки ИА вуза (шаблон)"
+    ]
+  },
+  "references": [
+    {
+      "title": "ФСО № 11 «Оценка нематериальных активов и интеллектуальной собственности» (приказ Минэкономразвития от 22.06.2015 № 385)",
+      "url": "https://legalacts.ru/doc/prikaz-minekonomrazvitija-rossii-ot-22062015-n-385/"
+    },
+    {
+      "title": "ФСБУ 14/2022 «Нематериальные активы» (приказ Минфина от 30.05.2022 № 86н)",
+      "url": "https://glavkniga.ru/docs/13129"
+    },
+    {
+      "title": "Рекомендация ЕС 2023/499: Кодекс практики по управлению интеллектуальными активами",
+      "url": "https://eur-lex.europa.eu/eli/reco/2023/499"
+    },
+    {
+      "title": "ISO 56005:2020 — инструменты и методы управления ИС в инновационной деятельности",
+      "url": "https://standards.iteh.ai/catalog/standards/cen/367993cb-4cf9-4213-bbf3-8f5a9e3bed8c/en-iso-56005-2021"
+    }
+  ],
+  "status": "active"
+}

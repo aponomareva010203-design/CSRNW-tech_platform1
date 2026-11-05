@@ -5,22 +5,10 @@ title AIOS - платформа управления инновациями
 rem ================================================================
 rem  Запуск AIOS на Windows в один клик: дважды щёлкните этот файл.
 rem  Первый запуск ставит зависимости (5-10 минут, нужен интернет),
-rem  следующие — сразу открывают платформу. Окно не закрывайте:
+rem  следующие — сразу открывают платформу в выбранном браузере. Окно не закрывайте:
 rem  пока оно открыто, платформа работает. Остановить — закрыть окно.
 rem ================================================================
 cd /d "%~dp0"
-
-set "PORT=8000"
-set "URL=http://localhost:%PORT%"
-
-rem --- платформа уже запущена (второй двойной клик) — просто открываем браузер
-powershell -NoProfile -Command "try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 '%URL%/' | Out-Null; exit 0 } catch { exit 1 }" >nul 2>nul
-if not errorlevel 1 (
-    echo Платформа уже запущена - открываю браузер.
-    start "" "%URL%"
-    timeout /t 3 >nul
-    exit /b 0
-)
 
 echo.
 echo  AIOS - платформа управления инновациями университета
@@ -76,15 +64,15 @@ echo [3/4] Зависимости установлены.
 rem --- настройки: .env из шаблона (стартовый администратор)
 if not exist ".env" if exist ".env.example" copy ".env.example" ".env" >nul
 
-rem --- 4. Запуск; браузер откроется сам, когда сервер ответит
-echo [4/4] Запускаю платформу: %URL%
+rem --- 4. Запуск: scripts\launch.py спросит, в каком браузере открыть
+rem     платформу, запустит сервер и сам откроет браузер, когда тот ответит.
+rem     Если платформа уже запущена - просто откроет браузер.
+echo [4/4] Запускаю платформу...
 echo.
 echo  Вход администратора: admin@university.local / admin12345
 echo  НЕ ЗАКРЫВАЙТЕ это окно, пока работаете с платформой.
 echo  Чтобы остановить платформу - закройте окно.
-echo.
-start "" /b powershell -NoProfile -WindowStyle Hidden -Command "for ($i = 0; $i -lt 180; $i++) { try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 '%URL%/' | Out-Null; Start-Process '%URL%'; break } catch { Start-Sleep -Seconds 1 } }"
-python -m uvicorn api.main:app --host 127.0.0.1 --port %PORT%
+python scripts\launch.py %*
 echo.
 echo Платформа остановлена.
 pause

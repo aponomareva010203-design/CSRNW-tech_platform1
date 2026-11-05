@@ -14,7 +14,8 @@
       "name_ru": "Портфель РИД и проектов",
       "order": 2,
       "skills": [
-        "portfolio-analyst"
+        "portfolio-analyst",
+        "ip-asset-evaluator"
       ],
       "next": "ecosystem"
     },

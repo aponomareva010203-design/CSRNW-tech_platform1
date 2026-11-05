@@ -183,6 +183,29 @@
     if (!written) el.appendChild(document.createTextNode('—'));
   }
 
+  /* «Источники: …» — реальные документы и сайты, на которые опирается
+     онтология или база (поле references: [{title, url}]) */
+  function appendReferences(container, refs) {
+    if (!refs || !refs.length) return;
+    var box = document.createElement('div');
+    box.className = 'mm-source rag-corpus-list';
+    box.appendChild(document.createTextNode('Источники: '));
+    refs.forEach(function (ref, i) {
+      if (i) box.appendChild(document.createTextNode(' · '));
+      if (ref.url) {
+        var a = document.createElement('a');
+        a.href = ref.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = ref.title || ref.url;
+        box.appendChild(a);
+      } else {
+        box.appendChild(document.createTextNode(ref.title || ''));
+      }
+    });
+    container.appendChild(box);
+  }
+
   function openRag(base) {
     ragImg.src = base.image_url || PLACEHOLDER_IMG;
     ragImg.alt = base.name;
@@ -223,6 +246,7 @@
       });
       actions.appendChild(list);
     }
+    appendReferences(actions, base.references);
     if (base.ontology_id) {
       var onto = document.createElement('a');
       onto.className = 'btn-register mm-btn';
@@ -296,6 +320,7 @@
     renderTags(document.getElementById('ontoModalTags'), onto.tags);
     var actions = document.getElementById('ontoModalActions');
     actions.innerHTML = '';
+    appendReferences(actions, onto.references);
     if (onto.file_url) {
       var view3d = document.createElement('a');
       view3d.className = 'btn-primary mm-btn';
