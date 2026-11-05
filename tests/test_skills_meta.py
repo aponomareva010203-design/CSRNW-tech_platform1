@@ -236,7 +236,7 @@ def test_approval_registry_marks_configured_tools(tmp_path, monkeypatch):
     get_settings.cache_clear()
 
 
-TEMPLATE_IDS = ("portfolio-analyst", "ecosystem-analyst", "venture-builder")
+TEMPLATE_IDS = ("portfolio-analyst", "ecosystem-analyst", "venture-builder", "ip-asset-evaluator")
 TEMPLATE_SECTIONS = ("Назначение", "Роль", "Навыки (skills)", "Входные данные",
                      "Выходные данные", "Ограничения")
 

@@ -104,3 +104,6 @@ backups/
 # выгрузки и данные участников: формируются на сервере, в Git не входят
 reports/
 feedback/
+
+# выбранный браузер для запуска (scripts/launch.py)
+.aios-browser

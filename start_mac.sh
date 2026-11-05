@@ -9,9 +9,6 @@
 
 cd "$(dirname "$0")" || exit 1
 
-PORT=8000
-URL="http://localhost:$PORT"
-
 pause_exit() {
     echo
     read -r -p "Нажмите Enter, чтобы закрыть окно..." _
@@ -29,15 +26,6 @@ open_url() {
     elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1" >/dev/null 2>&1
     fi
 }
-
-is_up() { curl -fs -o /dev/null --max-time 2 "$URL/"; }
-
-# --- платформа уже запущена (второй двойной клик) — просто открываем браузер
-if is_up; then
-    echo "Платформа уже запущена — открываю браузер."
-    open_url "$URL"
-    exit 0
-fi
 
 echo
 echo " AIOS — платформа управления инновациями университета"
@@ -116,24 +104,16 @@ if [ ! -f ".env" ] && [ -f ".env.example" ]; then
     cp ".env.example" ".env"
 fi
 
-# --- 4. Запуск; браузер откроется сам, когда сервер ответит
-echo "[4/4] Запускаю платформу: $URL"
+# --- 4. Запуск: scripts/launch.py спросит, в каком браузере открыть
+#     платформу, запустит сервер и сам откроет браузер, когда тот ответит.
+#     Если платформа уже запущена — просто откроет браузер.
+echo "[4/4] Запускаю платформу..."
 echo
 echo " Вход администратора: admin@university.local / admin12345"
 echo " НЕ ЗАКРЫВАЙТЕ это окно, пока работаете с платформой."
 echo " Чтобы остановить платформу — закройте окно или нажмите Ctrl+C."
-echo
 
-(
-    for _ in $(seq 1 180); do
-        if is_up; then open_url "$URL"; break; fi
-        sleep 1
-    done
-) &
-WAITER=$!
-
-trap 'kill "$WAITER" 2>/dev/null' EXIT
-python -m uvicorn api.main:app --host 127.0.0.1 --port "$PORT"
+python scripts/launch.py "$@"
 echo
 echo "Платформа остановлена."
 pause_exit 0

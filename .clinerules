@@ -30,7 +30,8 @@
 - Запуск — двойной щелчок:
   - Windows — `start_windows.bat`;
   - macOS — `start_mac.command`.
-- Откроется чёрное окно, платформа будет на http://localhost:8000.
+- Откроется чёрное окно; скрипт `scripts/launch.py` спросит браузер и сам
+  откроет платформу на http://localhost:8000 (если порт занят — на 8001…).
 - Вход: `admin@university.local` / `admin12345`.
 - Python-окружение: папка `venv`. Python в нём:
   - Windows — `venv\Scripts\python`;
@@ -58,7 +59,8 @@
 | Рабочий стол проректора (дашборд) | вёрстка `frontend/index.html`, логика `frontend/js/dashboard.js`, данные `data/dashboard.json` |
 | Стили и цвета | `frontend/css/style.css`. Цвета — токены в начале файла: `--green` (основной синий), `--gold` (зелёный акцент), `--red`, `--amber`, `--ink`, `--ink-soft`, `--line`, `--card`, `--paper` |
 | Левое меню | копия блока `<aside class="sidebar">` есть в КАЖДОЙ странице `frontend/*.html` (кроме `privacy-policy.html`) |
-| Данные и знания | `frontend/knowledge.html`, `js/knowledge.js`; онтологии `data/ontologies.json` + графы `data/ontologies/objects/`; RAG-базы `data/rag_bases.json` + документы `data/rag/corpus/{id}/*.md` |
+| Данные и знания | `frontend/knowledge.html`, `js/knowledge.js`; онтологии `data/ontologies.json` + графы `data/ontologies/objects/`; RAG-базы `data/rag_bases.json` + документы `data/rag/corpus/{id}/*.md`. Демо-каталог собирается скриптом `scripts/seed_innovation_knowledge.py` (онтологии — `scripts/seed_knowledge/ontologies.py`): правь там и перезапусти скрипт |
+| Витрина механизмов поддержки | `frontend/showcase.html`, `js/showcase.js`; механизмы, контуры и веса — `data/support_showcase.json` |
 | Агенты | каталог `data/skills.json`, тексты агентов `data/skills/*.md`; страница `frontend/agents.html`, `js/agents.js`, шаблоны конструктора `js/agent_templates.js` |
 | Модели | `frontend/models.html`; встроенные модели офиса проректора `frontend/js/innovation_models.js` (массив MODELS); открытые модели `data/models.json` |
 | Полигоны | `frontend/polygons.html`, `js/polygons.js`; примеры `data/polygons/pg-*.json`; модель `api/runtime/polygons.py` |
@@ -130,7 +132,7 @@ JSON не видны. Скажи нажать «Вернуть демо-данн
    Подключи скрипт в конце страницы ПЕРЕД `js/workspace.js`.
 4. Данные раздела — новый файл `data/имя.json`.
 5. Добавь пункт меню в `<aside class="sidebar">` во ВСЕХ страницах
-   `frontend/*.html` (их 15, `privacy-policy.html` не трогай) — в нужную
+   `frontend/*.html` (их 16, `privacy-policy.html` не трогай) — в нужную
    группу: «Дашборды», «Каталоги» или «Рабочее пространство». Образец:
    `<a class="side-link side-link--ico" href="partners.html"><svg class="side-ico" viewBox="0 0 24 24" aria-hidden="true">…</svg><span class="side-ico-main">Партнёры</span></a>`.
    На самой новой странице добавь пункту класс `active`.
