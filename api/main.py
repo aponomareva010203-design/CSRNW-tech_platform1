@@ -52,13 +52,13 @@ async def lifespan(_: FastAPI):
     try:
         yield
     finally:
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
-        if tg_task:
-            tg_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await tg_task
+        # остановка не должна зависать: ждём фоновые задачи не дольше 5 с
+        for bg in (task, tg_task):
+            if bg is None:
+                continue
+            bg.cancel()
+            with contextlib.suppress(asyncio.CancelledError, asyncio.TimeoutError, Exception):
+                await asyncio.wait_for(bg, timeout=5)
 
 
 app = FastAPI(title="AIOS API", version="0.4.0", lifespan=lifespan)

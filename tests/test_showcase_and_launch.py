@@ -83,3 +83,33 @@ def test_launch_skips_busy_foreign_port():
         port = busy.getsockname()[1]
         chosen, running = launch.pick_port(port)
         assert chosen != port and not running
+
+
+def test_scheduler_loop_stops_on_cancel(monkeypatch):
+    """Ctrl+C: фоновый планировщик должен завершаться по отмене, а не
+    засыпать снова (иначе сервер висит на «Waiting for application shutdown»)."""
+    import asyncio
+
+    from api.runtime import user_context
+
+    calls = []
+
+    async def fake_job():
+        calls.append(1)
+
+    monkeypatch.setattr(user_context, "STARTUP_DELAY", 0)
+    monkeypatch.setattr(user_context, "_next_run_delay", lambda: 3600)
+    monkeypatch.setattr(user_context, "run_user_context_job", fake_job)
+
+    async def scenario():
+        task = asyncio.create_task(user_context.scheduler_loop())
+        await asyncio.sleep(0.05)
+        task.cancel()
+        try:
+            await asyncio.wait_for(task, timeout=2)
+        except asyncio.CancelledError:
+            pass
+        return task.cancelled()
+
+    assert asyncio.run(scenario()) is True
+    assert calls == []  # отмена не запускает внеочередной проход
