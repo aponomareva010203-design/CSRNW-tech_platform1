@@ -5,16 +5,19 @@ GET    /api/polygons/{id}         — один полигон (пример ил
 POST   /api/polygons              — создать / обновить свой полигон (upsert по id);
 DELETE /api/polygons/{id}         — удалить свой полигон;
 POST   /api/polygons/simulate     — прогон сценарной модели (без входа, без LLM);
-POST   /api/polygons/panel        — ИИ-фокус-группа по идее (вход + настроенный LLM).
+POST   /api/polygons/panel        — ИИ-фокус-группа по идее (вход + настроенный LLM);
+GET    /api/polygons/games/leaderboard?code=&game= — итоги команд в игре-симуляторе;
+POST   /api/polygons/games/results — отправить итог своей команды (нужен вход).
 
-Модель и хранилище — api/runtime/polygons.py.
+Модель и хранилище — api/runtime/polygons.py; итоги игр — api/runtime/polygon_games.py.
 """
 
 import asyncio
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 
-from ..runtime import polygons
+from ..runtime import polygon_games, polygons
+from ..runtime.polygon_games import GameError
 from ..runtime.llm_settings import effective_config_for
 from ..runtime.model_engine import author_name
 from ..runtime.polygons import PolygonError
@@ -42,6 +45,27 @@ def simulate(payload: dict = Body(...)):
         )
     except PolygonError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.get("/polygons/games/leaderboard")
+def games_leaderboard(code: str, game: str | None = None):
+    try:
+        rows = polygon_games.get_store().leaderboard(code, game)
+    except GameError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    for r in rows:
+        r.pop("user_id", None)
+    return {"code": polygon_games.normalize_code(code), "items": rows}
+
+
+@router.post("/polygons/games/results")
+def games_submit(payload: dict = Body(...), user: dict = Depends(get_current_user)):
+    try:
+        row = polygon_games.get_store().submit(
+            payload.get("code"), payload, author=author_name(user["id"]), user_id=user["id"])
+    except GameError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return {k: v for k, v in row.items() if k != "user_id"}
 
 
 @router.get("/polygons/{polygon_id}")

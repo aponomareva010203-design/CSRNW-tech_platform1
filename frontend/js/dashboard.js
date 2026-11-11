@@ -14,6 +14,10 @@
      - Цепочка финансирования: РНФ → Гранты → Стартап-студия → Венчур;
      - Стартап-коллективы: грантовые / внутренние / госзадание;
      - Венчурный билдер: трекер обязательств стартапов.
+
+   Какие плитки KPI и виджеты видны, в каком порядке и какого размера —
+   решает конструктор дашборда (js/dashboard_builder.js): он получает
+   данные и утилиты через window.AIOS_DASH (в конце этого файла).
    ============================================================ */
 
 (function () {
@@ -31,6 +35,15 @@
     risk: 'Риск',
     overdue: 'Просрочено',
     done: 'Выполнено'
+  };
+
+  /* Плитки KPI по умолчанию (дашборд «Проректор по инновациям») */
+  var DEFAULT_KPIS = ['patents', 'rid_cost', 'projects', 'stale', 'teams', 'overdue'];
+  var KPI_TITLES = {
+    patents: 'Патенты и РИД', rid_cost: 'Затраты на поддержку РИД', projects: 'Проекты в портфеле',
+    stale: 'Кандидаты на закрытие', teams: 'Стартап-коллективы', overdue: 'Просроченные обязательства',
+    licensed: 'РИД с лицензиатом', budget: 'Бюджет портфеля', late_trl: 'Проекты УГТ 7–9',
+    valley: '«Долина смерти» УГТ 4–6', venture_done: 'Выполнено обязательств'
   };
 
   var state = {
@@ -137,14 +150,35 @@
     var stale = projects.filter(isStale).length;
     var overdue = arr('venture_tracker').filter(function (r) { return ventureStatus(r) === 'overdue'; }).length;
 
-    var tiles = [
-      { label: 'Патенты и РИД', value: patents.length, note: high + ' с высокой перспективностью' },
-      { label: 'Затраты на поддержку РИД', value: money(cost), note: 'из них ' + money(lowCost) + ' — низкая перспективность' },
-      { label: 'Проекты в портфеле', value: projects.length, note: 'средний УГТ ' + avgTrl(projects) },
-      { label: 'Кандидаты на закрытие', value: stale, note: 'на одном УГТ ' + staleYears() + ' ' + plural(staleYears(), 'год', 'года', 'лет') + ' и дольше', alert: stale > 0 },
-      { label: 'Стартап-коллективы', value: teams.length, note: teams.reduce(function (s, t) { return s + (Number(t.members) || 0); }, 0) + ' человек в командах' },
-      { label: 'Просроченные обязательства', value: overdue, note: 'по трекеру венчурного билдера', alert: overdue > 0 }
-    ];
+    var licensed = patents.filter(function (p) { return p.licensee; }).length;
+    var venture = arr('venture_tracker');
+    var done = venture.filter(function (r) { return ventureStatus(r) === 'done'; }).length;
+    var budget = projects.reduce(function (s, p) { return s + (Number(p.budget) || 0); }, 0);
+    var late = projects.filter(function (p) { return Number(p.trl) >= 7; }).length;
+    var valley = projects.filter(function (p) { var t = Number(p.trl); return t >= 4 && t <= 6; }).length;
+    var avgProgress = venture.length
+      ? Math.round(venture.reduce(function (s, r) { return s + (Number(r.progress) || 0); }, 0) / venture.length) : 0;
+
+    /* Каталог плиток KPI: ключ → плитка. Какие показывать и в каком
+       порядке — решает раскладка конструктора (js/dashboard_builder.js). */
+    var catalog = {
+      patents: { label: 'Патенты и РИД', value: patents.length, note: high + ' с высокой перспективностью' },
+      rid_cost: { label: 'Затраты на поддержку РИД', value: money(cost), note: 'из них ' + money(lowCost) + ' — низкая перспективность' },
+      projects: { label: 'Проекты в портфеле', value: projects.length, note: 'средний УГТ ' + avgTrl(projects) },
+      stale: { label: 'Кандидаты на закрытие', value: stale, note: 'на одном УГТ ' + staleYears() + ' ' + plural(staleYears(), 'год', 'года', 'лет') + ' и дольше', alert: stale > 0 },
+      teams: { label: 'Стартап-коллективы', value: teams.length, note: teams.reduce(function (s, t) { return s + (Number(t.members) || 0); }, 0) + ' человек в командах' },
+      overdue: { label: 'Просроченные обязательства', value: overdue, note: 'по трекеру венчурного билдера', alert: overdue > 0 },
+      licensed: { label: 'РИД с лицензиатом', value: licensed, note: Math.round(licensed / (patents.length || 1) * 100) + '% портфеля РИД' },
+      budget: { label: 'Бюджет портфеля', value: money(budget), note: 'сумма бюджетов проектов' },
+      late_trl: { label: 'Проекты УГТ 7–9', value: late, note: 'близки к выходу на рынок' },
+      valley: { label: '«Долина смерти» УГТ 4–6', value: valley, note: 'нужен proof-of-concept и партнёр' },
+      venture_done: { label: 'Выполнено обязательств', value: done + ' из ' + venture.length, note: 'средний прогресс ' + avgProgress + '%' }
+    };
+    var keys = (window.AIOS_DASH && window.AIOS_DASH.kpiKeys) || DEFAULT_KPIS;
+    var tiles = keys.filter(function (k) { return catalog[k]; }).map(function (k) { return catalog[k]; });
+    var row = el('kpiRow');
+    row.hidden = !tiles.length;
+    row.style.setProperty('--kpi-cols', Math.min(Math.max(tiles.length, 1), 6));
     el('kpiRow').innerHTML = tiles.map(function (t) {
       return '<div class="kpi' + (t.alert ? ' kpi--alert' : '') + '">' +
         '<div class="kpi-label">' + esc(t.label) + '</div>' +
@@ -425,7 +459,33 @@
     renderFunding();
     renderTeams();
     renderVenture();
+    /* Конструктор дашборда перерисовывает свои виджеты на новых данных */
+    (window.AIOS_DASH.onRender || []).forEach(function (fn) { try { fn(); } catch (e) { /* виджет не должен ронять дашборд */ } });
   }
+
+  /* Мост для конструктора дашборда (js/dashboard_builder.js) */
+  window.AIOS_DASH = Object.assign(window.AIOS_DASH || {}, {
+    kpiTitles: KPI_TITLES,
+    defaultKpis: DEFAULT_KPIS,
+    data: function () { return state.data || {}; },
+    arr: arr,
+    esc: esc,
+    money: money,
+    plural: plural,
+    fmtDate: fmtDate,
+    isStale: isStale,
+    yearsOnLevel: yearsOnLevel,
+    ventureStatus: ventureStatus,
+    ventureStatusTitles: VENTURE_STATUS,
+    teamFundingTitles: TEAM_FUNDING,
+    perspectiveTitles: PERSPECTIVE,
+    stageTitles: stageTitles,
+    showTip: showTip,
+    hideTip: hideTip,
+    renderKpi: function () { if (state.data) renderKpi(); },
+    rerender: function () { if (state.data) renderAll(); },
+    onRender: (window.AIOS_DASH && window.AIOS_DASH.onRender) || []
+  });
 
   function loadLocal() {
     try {
