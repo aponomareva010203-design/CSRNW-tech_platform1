@@ -63,6 +63,25 @@ def test_clean_bundle_drops_unknown_widgets_and_fixes_active():
     assert lay["widgets"][1]["size"] == "m"
 
 
+def test_layout_keeps_meta_and_source():
+    data = dashboards.clean_bundle({"layouts": [{
+        "name": "CSV", "meta": {"step": "viz", "purpose": "Решать о поддержке"},
+        "source": {"kind": "upload", "name": "p.csv", "tables": {"data": {"title": "p", "rows": [{"a": 1}]}}},
+        "widgets": [{"id": "k1", "type": "kpi", "size": "s", "cfg": {"table": "data", "agg": "count"}},
+                    {"id": "s1", "type": "section"}, {"id": "a1", "type": "actions", "cfg": {"items": []}}],
+    }, {"name": "Чужой источник", "source": {"kind": "url", "href": "http://x"}}]})
+    first, second = data["layouts"]
+    assert first["meta"]["step"] == "viz" and first["source"]["tables"]["data"]["rows"] == [{"a": 1}]
+    assert [w["type"] for w in first["widgets"]] == ["kpi", "section", "actions"]
+    assert second["source"] == {"kind": "demo"}
+
+
+def test_too_big_source_is_rejected():
+    rows = [{"text": "x" * 100} for _ in range(7000)]
+    with pytest.raises(dashboards.DashboardError):
+        dashboards.clean_bundle({"layouts": [{"source": {"kind": "upload", "tables": {"t": {"rows": rows}}}}]})
+
+
 def test_too_big_note_is_rejected():
     with pytest.raises(dashboards.DashboardError):
         dashboards.clean_bundle({"layouts": [{"widgets": [{"id": "n", "type": "note", "cfg": {"text": "x" * 5000}}]}]})
