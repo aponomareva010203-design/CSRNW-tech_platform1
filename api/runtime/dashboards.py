@@ -1,13 +1,16 @@
 """Конструктор дашборда: личные раскладки участников (api/runtime/dashboards.py).
 
-На «Рабочем столе проректора» (index.html, js/dashboard_builder.js) каждый
-участник проектной сессии собирает свой дашборд: какие плитки KPI показывать,
-какие виджеты, в каком порядке и какого размера, свои графики, таблицы,
-показатели, цели и заметки. Раскладка — только описание вида; сами данные
-по-прежнему берутся из data/dashboard.json (или из загруженного файла).
+В «Конструкторе дашборда» (dashboard-builder.html, js/dashboard_builder.js)
+каждый участник проектной сессии собирает свои дашборды по шагам: цель и
+аудитория → источник данных → показатели → визуализации → компоновка →
+проверка. Раскладка описывает элементы (KPI, цели, графики, таблицы, решения,
+заметки, разделы), их порядок и размер; meta — цель, аудитория, вопросы,
+шаг сборки; source — источник данных: демо-данные вуза (data/dashboard.json)
+или свои загруженные таблицы (CSV/JSON) — их строки хранятся в раскладке,
+чтобы дашборд открывался с любого компьютера.
 
 Хранение: AIOS_RUNTIME_DIR/dashboards/{user_id}.json —
-{"active": id, "layouts": [{id, name, kpis, widgets, updated_at}]}.
+{"active": id, "layouts": [{id, name, kpis, widgets, meta, source, updated_at}]}.
 Без входа фронтенд хранит то же самое в localStorage.
 """
 
@@ -30,7 +33,12 @@ MAX_LAYOUTS = 20
 MAX_WIDGETS = 40
 MAX_KPIS = 12
 MAX_CFG_BYTES = 4000  # настройки одного виджета (в т.ч. текст заметки)
-WIDGET_TYPES = {"builtin", "chart", "metric", "table", "goal", "note"}
+MAX_META_BYTES = 4000
+MAX_SOURCE_BYTES = 600_000  # свои загруженные таблицы одного дашборда
+MAX_BUNDLE_BYTES = 3_000_000
+# kpi, goal, chart, table, note, actions, section — конструктор;
+# builtin, metric — раскладки первой версии конструктора (совместимость)
+WIDGET_TYPES = {"kpi", "goal", "chart", "table", "note", "actions", "section", "builtin", "metric"}
 SIZES = {"s", "m", "l", "xl"}
 
 
@@ -75,11 +83,21 @@ def clean_layout(raw) -> dict:
             seen.add(cw["id"])
             widgets.append(cw)
     kpis = [_text(k, 40) for k in (raw.get("kpis") or []) if isinstance(k, str)][:MAX_KPIS]
+    meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
+    if len(json.dumps(meta, ensure_ascii=False)) > MAX_META_BYTES:
+        raise DashboardError("Слишком длинное описание цели дашборда")
+    source = raw.get("source") if isinstance(raw.get("source"), dict) else {"kind": "demo"}
+    if source.get("kind") not in ("demo", "upload"):
+        source = {"kind": "demo"}
+    if len(json.dumps(source, ensure_ascii=False)) > MAX_SOURCE_BYTES:
+        raise DashboardError("Загруженные данные дашборда больше 600 КБ — сократите таблицу или храните её только в браузере")
     return {
         "id": lid,
         "name": _text(raw.get("name"), 80) or "Мой дашборд",
         "kpis": kpis,
         "widgets": widgets,
+        "meta": meta,
+        "source": source,
         "updated_at": int(time.time()),
     }
 
@@ -100,6 +118,8 @@ def clean_bundle(raw) -> dict:
             lay["id"] = "d-" + secrets.token_hex(4)
         ids.add(lay["id"])
         cleaned.append(lay)
+    if len(json.dumps(cleaned, ensure_ascii=False)) > MAX_BUNDLE_BYTES:
+        raise DashboardError("Все дашборды участника вместе больше 3 МБ — удалите лишние")
     active = str(raw.get("active") or "")
     if active not in ids:
         active = cleaned[0]["id"] if cleaned else ""
