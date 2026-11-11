@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Полигоны — AIOS · Инновации университета</title>
-<link rel="stylesheet" href="css/style.css?v=20261030a">
+<link rel="stylesheet" href="css/style.css?v=20261111a">
 </head>
 <body>
 <div class="layout">
@@ -74,9 +74,30 @@
       до того, как тратить бюджет. <b>Сценарная модель</b> прогоняет портфель проектов по УГТ сотни раз (Монте-Карло)
       и показывает, в какой доле прогонов гипотеза подтверждается в каждом сценарии; работает без LLM.
       <b>ИИ-фокус-группа</b> — виртуальные инвестор, индустриальный партнёр, эксперт фонда, ЦТТ, студент-основатель
-      и финансовый директор оценивают идею со своей стороны.</p>
+      и финансовый директор оценивают идею со своей стороны.
+      <b>Игровые полигоны</b> — пошаговые симуляторы управления стартапом и инновационной экосистемой вуза
+      и кейс-тренажёр управленческого стиля для командной игры на проектной сессии.</p>
     <div class="rule"></div>
   </section>
+
+  <!-- Игровые полигоны: js/polygon_games_data.js (сценарии), js/polygon_games.js (движок) -->
+  <section class="pgs-section" id="pgsGames">
+    <div class="mdl-team-head">
+      <div>
+        <h2 class="models-title">Игровые полигоны: симуляторы управления инновациями</h2>
+        <p class="mdl-team-note">Играйте командой: решения каждого хода, случайные события, итоговые очки. Один код сессии у всех команд —
+          одинаковые события и общая таблица результатов для разбора с модератором.</p>
+      </div>
+    </div>
+    <div class="pgs-session">
+      <label class="mdl-field"><span>Код сессии (одинаковый у всех команд)</span><input id="pgsCode" maxlength="32" placeholder="например: SPB-2026"></label>
+      <label class="mdl-field"><span>Команда</span><input id="pgsTeam" maxlength="60" placeholder="название команды"></label>
+      <p class="pg-hint">Без кода — одиночная игра без таблицы. Результат в таблицу отправляется после входа на платформу.</p>
+    </div>
+    <div class="mdl-grid" id="pgsGrid"></div>
+  </section>
+
+  <section class="pg-work pgs-work" id="pgsWork" hidden></section>
 
   <section class="pg-list-section">
     <div class="mdl-team-head">
@@ -182,6 +203,8 @@
 <script src="js/agent_views.js?v=20260929m"></script>
 <script src="js/thinking.js?v=20260925zq"></script>
 <script src="js/polygons.js?v=20261029a"></script>
+<script src="js/polygon_games_data.js?v=20261111a"></script>
+<script src="js/polygon_games.js?v=20261111a"></script>
 <script src="js/workspace.js?v=20261029a"></script>
 </body>
 </html>

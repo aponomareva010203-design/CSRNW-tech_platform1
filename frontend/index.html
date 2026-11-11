@@ -16,7 +16,7 @@
 <meta name="twitter:title" content="AIOS — платформа управления инновациями университета">
 <meta name="twitter:description" content="Платформа управления инновационными проектами, РИД и стартапами университета">
 <meta name="twitter:image" content="https://176.108.244.194.sslip.io/assets/og-image.png">
-<link rel="stylesheet" href="css/style.css?v=20261030a">
+<link rel="stylesheet" href="css/style.css?v=20261111a">
 </head>
 <body>
 <div class="layout">
@@ -82,6 +82,7 @@
   <section class="hero hero--desk">
     <div class="hero-eyebrow">Агентный инжиниринг для управления инновациями в вузе</div>
     <h1>Рабочий стол <span class="accent">проректора по инновациям</span></h1>
+    <p class="subtitle">Конструктор дашборда: каждый участник собирает свой набор показателей, графиков и целей</p>
     <p class="subtitle" id="dashUniversity">Университет · инновационные проекты, РИД, стартапы и МТК</p>
     <div class="rule"></div>
   </section>
@@ -90,7 +91,7 @@
   <ol class="session-path" aria-label="Путь участника сессии">
     <li><a href="#" id="pathLogin"><span class="n">1</span>Регистрация и вход</a></li>
     <li><a href="cabinet.html"><span class="n">2</span>Онбординг: проект вуза</a></li>
-    <li><a href="#dashboard"><span class="n">3</span>Дашборд с метриками</a></li>
+    <li><a href="#dashboard"><span class="n">3</span>Свой дашборд в конструкторе</a></li>
     <li><a href="agents.html#templates"><span class="n">4</span>Шаблон агента</a></li>
     <li><a href="agents.html#builder"><span class="n">5</span>Свой MD-файл</a></li>
   </ol>
@@ -107,8 +108,44 @@
     </a>
   </div>
 
-  <!-- Дашборд: данные из data/dashboard.json (js/dashboard.js) -->
-  <section class="dash" id="dashboard" aria-label="Дашборд проректора по инновациям">
+  <!-- Дашборд: данные из data/dashboard.json (js/dashboard.js);
+       конструктор — свой набор виджетов у каждого участника (js/dashboard_builder.js) -->
+  <section class="dash" id="dashboard" aria-label="Конструктор дашборда по инновациям">
+
+    <div class="db-bar" id="dbBar">
+      <div class="db-bar-main">
+        <label class="db-bar-label" for="dbSelect">Мой дашборд</label>
+        <select id="dbSelect" class="db-select" aria-label="Выбор дашборда"></select>
+        <button class="btn-primary db-edit" id="dbEdit" type="button">Настроить дашборд</button>
+      </div>
+      <div class="dash-actions">
+        <button class="dash-btn" id="dbNew" type="button">Новый</button>
+        <button class="dash-btn" id="dbCopy" type="button">Копия</button>
+        <button class="dash-btn" id="dbDelete" type="button">Удалить</button>
+        <button class="dash-btn" id="dbExport" type="button" title="Скачать раскладку, чтобы поделиться с командой">Экспорт раскладки</button>
+        <label class="dash-btn" title="Загрузить раскладку коллеги">Импорт раскладки<input type="file" id="dbImport" accept=".json,application/json" hidden></label>
+      </div>
+      <div class="db-saved" id="dbSaved" role="status"></div>
+    </div>
+
+    <div class="db-panel" id="dbPanel" hidden>
+      <div class="db-panel-head">
+        <label class="mdl-field db-name"><span>Название дашборда</span><input id="dbName" maxlength="80"></label>
+        <p class="widget-sub">Перетаскивайте виджеты за <b>⠿</b> или стрелками ◀ ▶, меняйте ширину кнопками S/M/L/XL, настраивайте <b>⚙</b>. Всё сохраняется сразу.</p>
+      </div>
+      <div class="db-section">
+        <div class="db-lib-title">1. Начните с шаблона своей роли</div>
+        <div class="db-cards" id="dbPresets"></div>
+      </div>
+      <div class="db-section">
+        <div class="db-lib-title">2. Плитки KPI — нажимайте в нужном порядке</div>
+        <div class="chips db-kpis" id="dbKpis"></div>
+      </div>
+      <div class="db-section">
+        <div class="db-lib-title">3. Библиотека виджетов</div>
+        <div id="dbLibrary"></div>
+      </div>
+    </div>
 
     <div class="dash-toolbar">
       <div class="dash-source" id="dashSource">Загрузка данных…</div>
@@ -200,6 +237,24 @@
 
   <div class="dash-tooltip" id="dashTip" hidden></div>
 
+  <!-- Настройка виджета конструктора (js/dashboard_builder.js) -->
+  <div class="modal-overlay" id="dbModal" hidden>
+    <div class="modal modal--db" role="dialog" aria-modal="true" aria-labelledby="dbModalTitle">
+      <button class="modal-close" id="dbModalClose" type="button" aria-label="Закрыть">✕</button>
+      <h2 id="dbModalTitle">Настройка виджета</h2>
+      <div class="db-modal-grid">
+        <form id="dbForm" class="db-form">
+          <div class="db-form-body"></div>
+          <div class="db-form-actions">
+            <button class="btn-primary" type="submit">Применить</button>
+            <button class="btn-register" id="dbCancel" type="button">Отмена</button>
+          </div>
+        </form>
+        <div class="db-preview" id="dbPreview"></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 </div>
 
@@ -209,6 +264,7 @@
 <script src="js/agent_views.js?v=20260929m"></script>
 <script src="js/thinking.js?v=20260925zq"></script>
 <script src="js/workspace.js?v=20261029a"></script>
-<script src="js/dashboard.js?v=20261027a"></script>
+<script src="js/dashboard.js?v=20261111a"></script>
+<script src="js/dashboard_builder.js?v=20261111a"></script>
 </body>
 </html>

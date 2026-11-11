@@ -57,6 +57,7 @@
 | Что | Где |
 |---|---|
 | Рабочий стол проректора (дашборд) | вёрстка `frontend/index.html`, логика `frontend/js/dashboard.js`, данные `data/dashboard.json` |
+| Конструктор дашборда | `frontend/js/dashboard_builder.js`: `BUILTINS` — готовые виджеты, `CUSTOM` — свои типы, `DATASETS` — наборы данных и подписи полей, `PRESETS` — шаблоны ролей; каталог плиток KPI — `catalog` в `renderKpi()` и `KPI_TITLES` в `js/dashboard.js`; раскладки участников — `api/runtime/dashboards.py` |
 | Стили и цвета | `frontend/css/style.css`. Цвета — токены в начале файла: `--green` (основной синий), `--gold` (зелёный акцент), `--red`, `--amber`, `--ink`, `--ink-soft`, `--line`, `--card`, `--paper` |
 | Левое меню | копия блока `<aside class="sidebar">` есть в КАЖДОЙ странице `frontend/*.html` (кроме `privacy-policy.html`) |
 | Данные и знания | `frontend/knowledge.html`, `js/knowledge.js`; онтологии `data/ontologies.json` + графы `data/ontologies/objects/`; RAG-базы `data/rag_bases.json` + документы `data/rag/corpus/{id}/*.md`. Демо-каталог собирается скриптом `scripts/seed_innovation_knowledge.py` (онтологии — `scripts/seed_knowledge/ontologies.py`): правь там и перезапусти скрипт |
@@ -64,6 +65,7 @@
 | Агенты | каталог `data/skills.json`, тексты агентов `data/skills/*.md`; страница `frontend/agents.html`, `js/agents.js`, шаблоны конструктора `js/agent_templates.js` |
 | Модели | `frontend/models.html`; встроенные модели офиса проректора `frontend/js/innovation_models.js` (массив MODELS); открытые модели `data/models.json` |
 | Полигоны | `frontend/polygons.html`, `js/polygons.js`; примеры `data/polygons/pg-*.json`; модель `api/runtime/polygons.py` |
+| Игровые полигоны (симуляторы) | сценарии `frontend/js/polygon_games_data.js` (массив `GAMES`), движок `js/polygon_games.js`, таблица результатов `api/runtime/polygon_games.py` |
 | Проекты | `frontend/projects.html`, `js/projects.js`; поля карточки — `TEXT_FIELDS` в `api/runtime/projects.py`; онбординг `data/skills/project-onboarding.md` |
 | Рабочий чат | `frontend/js/workspace.js`; карточки «Чем займемся сегодня» — массив карточек после строки `tipsTitle.textContent = 'Чем займемся сегодня'` |
 | Сервер, маршруты API | `api/main.py`, `api/routers/*.py`; логика `api/runtime/*.py`; инструменты агентов `api/runtime/tools.py` |
@@ -93,9 +95,8 @@ JSON не видны. Скажи нажать «Вернуть демо-данн
    - `<header class="widget-head">` с `<h2>` и `<p class="widget-sub">`;
    - контейнер с id для содержимого.
 
-   `widget--wide` растягивает виджет на две колонки. Обычный виджет занимает
-   половину ширины. Если рядом нет второго обычного виджета, останется пустое
-   место — тогда делай виджет `widget--wide`.
+   Ширину и место задаёт конструктор дашборда (S/M/L/XL), класс
+   `widget--wide` больше не нужен.
 3. В `frontend/js/dashboard.js`:
    - напиши функцию `renderИмя()` по образцу `renderTeams()` / `renderPatents()`;
    - данные бери через `arr('ключ')` — пустой массив, если блока нет;
@@ -106,17 +107,35 @@ JSON не видны. Скажи нажать «Вернуть демо-данн
    Библиотеки графиков не подключай.
 5. Таблицы — класс `dtable` внутри `<div class="table-wrap">`.
 6. Подсказки при наведении — `showTip(evt, html)` / `hideTip()`.
+7. Зарегистрируй виджет в конструкторе: объект в массиве `BUILTINS` в
+   `frontend/js/dashboard_builder.js` (`id` — id статьи, `title`, `note`,
+   `size`: `s`/`m`/`l`/`xl`). Он появится в библиотеке виджетов и в шаблоне
+   «Проректор по инновациям». У участников с уже собранными дашбордами его
+   нужно добавить из библиотеки («Настроить дашборд»).
 
 ### Новая плитка KPI над дашбордом
-Добавь объект в массив `tiles` в функции `renderKpi()` в `js/dashboard.js`:
-- `label` — подпись;
-- `value` — значение;
-- `note` — пояснение;
-- `alert: true` — красная подсветка.
+1. Добавь объект с новым ключом в `catalog` в функции `renderKpi()` в
+   `js/dashboard.js`:
+   - `label` — подпись;
+   - `value` — значение;
+   - `note` — пояснение;
+   - `alert: true` — красная подсветка.
+2. Добавь тот же ключ с подписью в `KPI_TITLES` (там же) — плитка появится
+   в конструкторе («Настроить дашборд → Плитки KPI»).
+3. Чтобы плитка была видна по умолчанию — добавь ключ в `DEFAULT_KPIS`.
 
-В ряду ровно 6 колонок: `grid-template-columns: repeat(6, …)` в первом
-правиле `.kpi-row` в `style.css`. Если плиток стало 7 или 8, поменяй там 6 на
-их число. Правила `.kpi-row` для узких экранов (внутри `@media`) не трогай.
+Число колонок ряда подстраивается само (до 6).
+
+### Новый шаблон роли или поле в конструкторе дашборда
+В `frontend/js/dashboard_builder.js`:
+- шаблон роли — объект в массиве `PRESETS` по образцу соседних;
+- новое поле данных для графиков и таблиц — строка в `DATASETS.<набор>.fields`:
+  `имя: ['Подпись', 'cat'|'num'|'money'|'text'|'date']`.
+
+### Новая игра или событие в игровых полигонах
+В `frontend/js/polygon_games_data.js`: событие — объект в массиве `events`
+нужной игры (`title`, `text`, `weight`, необязательные `when(s)`, `effect`,
+`choices`); решение — объект в `actions`. Суммы — тыс. ₽.
 
 ### Новый раздел (страница)
 1. Скопируй `frontend/social.html` (это простая страница-заготовка) в новый
