@@ -1,12 +1,22 @@
 /* ============================================================
-   Игровые полигоны (polygons.html): движок и интерфейс симуляторов.
+   Игровые полигоны (polygons.html): движок и интерфейс управленческих
+   симуляторов для проректора по инновациям.
    Сценарии — js/polygon_games_data.js (window.AIOS_POLYGON_GAMES).
 
    - Пошаговые игры (kind 'turns'): ход = квартал/год. В начале хода —
      случайное событие (часто с выбором), затем участник выбирает до
      N решений (и/или распределяет бюджет ползунками), «Завершить ход»
      применяет решения и динамику, пишет журнал и графики.
-   - Кейсы (kind 'cases'): ветвящиеся ситуации → профиль и архетип.
+   - planFact(s) (необязательно) — таблица «План-факт» над решениями.
+   - debrief(s) (необязательно) — управленческий разбор после игры:
+     выводы по решениям, вопросы для обсуждения, чек-лист для своего вуза.
+   - Кейсы (kind 'cases'): ветвящиеся ситуации с комментарием «что учесть»
+     → профиль управленческого стиля.
+   - Роль (G.roles) выбирается над карточками до старта: подсвечивает
+     рекомендованные симуляторы и наборы ситуаций, задаёт полномочия —
+     решение с approval, которое роль не принимает сама, уходит на
+     согласование и исполняется в следующем квартале (s._pending);
+     в разборе — взгляд роли и её вопросы; роль уходит в таблицу сессии.
    - Код сессии задаёт зерно случайностей: у всех команд одной сессии
      одинаковые события. Итог команды отправляется в таблицу сессии:
      POST /api/polygons/games/results, таблица — GET .../leaderboard.
@@ -22,11 +32,24 @@
 
   var API = window.AIOS_API;
   var $ = function (id) { return document.getElementById(id); };
-  var SAVE_KEY = 'aios-pgs-v1:';
+  var SAVE_KEY = 'aios-pgs-v2:';  // v2: сценарии для проректора, старые сохранения несовместимы
   var PREF_KEY = 'aios-pgs-pref-v1';
   var fmtMoney = G.fmtMoney, fmtNum = G.fmtNum;
   var BY_ID = {};
   G.games.forEach(function (g) { BY_ID[g.id] = g; });
+  var ROLES = G.roles || [];
+  function roleId() { var el = $('pgsRole'); return el ? el.value : ''; }
+  function roleOf(id) { return (G.roleById || {})[id || roleId()] || null; }
+  function curRole() { return roleOf(cur && cur.role); }
+  function recommended(g, role) {
+    if (!role || !role.recommend) return false;
+    var r = role.recommend[g.id];
+    return Array.isArray(r) ? r.length > 0 : !!r;
+  }
+  /* решение роль принимает сама или через согласование */
+  function needsApproval(a) {
+    return !!(a && a.approval && (a.approval.own || []).indexOf(cur && cur.role) < 0);
+  }
 
   var cur = null;   // текущая партия
   var def = null;   // описание игры
@@ -69,7 +92,7 @@
     try { return JSON.parse(localStorage.getItem(PREF_KEY) || '{}'); } catch (e) { return {}; }
   }
   function savePrefs() {
-    try { localStorage.setItem(PREF_KEY, JSON.stringify({ code: $('pgsCode').value.trim(), team: $('pgsTeam').value.trim() })); } catch (e) { /* без сохранения */ }
+    try { localStorage.setItem(PREF_KEY, JSON.stringify({ code: $('pgsCode').value.trim(), team: $('pgsTeam').value.trim(), role: roleId() })); } catch (e) { /* без сохранения */ }
   }
   function sessionCode() { return ($('pgsCode').value || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, ''); }
 
@@ -86,14 +109,27 @@
 
   /* ---------- карточки игр ---------- */
 
+  function renderRoleInfo() {
+    var box = $('pgsRoleInfo');
+    if (!box) return;
+    var r = roleOf();
+    box.innerHTML = r ? '<b>' + esc(r.title) + '</b> <span class="cell-sub">(' + esc(r.alias) + ')</span><p>' + esc(r.scope) + '</p>' +
+      '<p class="pg-hint">Рекомендуем: ' + G.games.filter(function (g) { return recommended(g, r); }).map(function (g) { return '«' + esc(g.title) + '»'; }).join(', ') +
+      '. Остальные тоже доступны — в них вы действуете от лица другой должности.</p>'
+      : '<p class="pg-hint">Выберите должность, ближайшую к вашей: от неё зависят рекомендованные симуляторы, ваши полномочия в решениях и вопросы итогового разбора.</p>';
+  }
+
   function renderCards() {
     grid.innerHTML = '';
+    var role = roleOf();
     G.games.forEach(function (g) {
       var b = document.createElement('button');
       b.type = 'button';
-      b.className = 'mdl-card imdl-card pgs-card';
+      var rec = recommended(g, role);
+      b.className = 'mdl-card imdl-card pgs-card' + (rec ? ' pgs-card--rec' : '');
       b.innerHTML =
-        '<span class="mdl-card-top"><span class="mdl-kind">' + (g.kind === 'cases' ? 'кейс-тренажёр' : 'симулятор') + '</span>' +
+        (rec ? '<span class="pgs-rec">Рекомендовано для вашей роли</span>' : '') +
+        '<span class="mdl-card-top"><span class="mdl-kind">' + (g.kind === 'cases' ? 'управленческие кейсы' : 'управленческий симулятор') + '</span>' +
         '<span class="mdl-status mdl-status--published">' + esc((g.tags || [])[0] || '') + '</span></span>' +
         '<span class="mdl-card-name">' + esc(g.title) + '</span>' +
         '<span class="pgs-card-role">' + esc(g.role) + '</span>' +
@@ -105,11 +141,20 @@
   }
 
   function start(gameId) {
+    if (ROLES.length && !roleOf()) {
+      var sel = $('pgsRole');
+      sel.classList.add('is-required');
+      sel.focus();
+      sel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      var hint = $('pgsRoleInfo');
+      if (hint) hint.innerHTML = '<p class="pg-msg pg-msg--err">Сначала выберите свою роль — от неё зависят полномочия и разбор.</p>';
+      return;
+    }
     savePrefs();
     var code = sessionCode();
     var saved = loadSaved(gameId, code);
     def = BY_ID[gameId];
-    if (saved && !saved.finished && confirm('Есть незаконченная игра «' + BY_ID[gameId].title + '»' + (code ? ' в сессии ' + code : '') + '. Продолжить её?')) {
+    if (saved && !saved.finished && saved.role === roleId() && confirm('Есть незавершённая симуляция «' + BY_ID[gameId].title + '»' + (code ? ' в сессии ' + code : '') + '. Продолжить её?')) {
       cur = saved;
     } else {
       cur = newGame(gameId, code);
@@ -122,7 +167,7 @@
 
   function newGame(gameId, code) {
     var g = BY_ID[gameId];
-    var c = { game: gameId, code: code, team: $('pgsTeam').value.trim(), t: 0, finished: false, journal: [], history: [] };
+    var c = { game: gameId, code: code, team: $('pgsTeam').value.trim(), role: roleId(), t: 0, finished: false, journal: [], history: [] };
     if (g.kind === 'cases') {
       c.track = null; c.node = null; c.path = []; c.traits = {};
       return c;
@@ -175,6 +220,8 @@
     var choice = ev && ev.choices[i];
     if (!choice) return;
     var lines = [];
+    cur.s._choices = cur.s._choices || {};
+    cur.s._choices[cur.event.id] = i;
     choice.effect(cur.s, rng(seed('evc')), logger(lines));
     cur.journal.unshift({ t: cur.t, label: g.turnLabel(cur.t), title: 'Решение: ' + choice.label, lines: lines });
     cur.event = null;
@@ -213,9 +260,25 @@
     } else {
       cur.s.cash -= selectedCost();
     }
+    cur.s._used = cur.s._used || {};
+    /* решения, согласованные за прошлый квартал, исполняются сейчас */
+    var due = (cur.s._pending || []).filter(function (p) { return p.at < cur.t; });
+    cur.s._pending = (cur.s._pending || []).filter(function (p) { return p.at >= cur.t; });
+    due.forEach(function (p) {
+      var a = g.actions.filter(function (x) { return x.id === p.id; })[0];
+      if (!a) return;
+      log('Согласовано — ' + a.approval.by + ': «' + a.title + '»');
+      a.effect(cur.s, r, log);
+    });
     cur.selected.forEach(function (id) {
+      cur.s._used[id] = (cur.s._used[id] || 0) + 1;
       var a = g.actions.filter(function (x) { return x.id === id; })[0];
-      if (a) a.effect(cur.s, r, log);
+      if (!a) return;
+      if (needsApproval(a)) {
+        cur.s._pending.push({ id: id, at: cur.t });
+        cur.s._approvals = (cur.s._approvals || 0) + 1;
+        log('Направлено на согласование — ' + a.approval.by + ': «' + a.title + '». Исполнение в следующем квартале');
+      } else a.effect(cur.s, r, log);
     });
     if (!cur.selected.length) log(g.allocations ? 'Год без новых инициатив' : 'Ход без новых решений');
     g.tick(cur.s, r, log);
@@ -240,7 +303,7 @@
     cur.result = {
       score: res.score,
       outcome: over ? over.outcome : (res.outcome || 'draw'),
-      text: over ? over.text : (res.text || 'Игра завершена: прошли все ходы.'),
+      text: over ? over.text : (res.text || 'Симуляция завершена: пройдены все ходы.'),
       badges: res.badges || [],
       metrics: res.metrics || {}
     };
@@ -258,9 +321,12 @@
   }
 
   function header(sub) {
-    return '<div class="pgs-head"><div><div class="pgs-eyebrow">' + esc(def.kind === 'cases' ? 'Кейс-тренажёр' : 'Симулятор') +
-      (cur.code ? ' · сессия ' + esc(cur.code) : ' · одиночная игра') + (cur.team ? ' · команда «' + esc(cur.team) + '»' : '') + '</div>' +
-      '<h2 class="pgs-title">' + esc(def.title) + '</h2><p class="pgs-sub">' + sub + '</p></div>' +
+    var role = curRole();
+    return '<div class="pgs-head"><div><div class="pgs-eyebrow">' + esc(def.kind === 'cases' ? 'Управленческие ситуации' : 'Управленческий симулятор') +
+      (cur.code ? ' · сессия ' + esc(cur.code) : ' · без кода сессии') + (cur.team ? ' · команда «' + esc(cur.team) + '»' : '') + '</div>' +
+      '<h2 class="pgs-title">' + esc(def.title) + '</h2><p class="pgs-sub">' + sub + '</p>' +
+      (role ? '<p class="pgs-role">Ваша роль: <b>' + esc(role.title) + '</b></p>' : '') +
+      (role && def.roleNote && !recommended(def, role) ? '<p class="pg-hint">' + esc(def.roleNote) + '</p>' : '') + '</div>' +
       '<div class="pg-work-actions"><button class="btn-register pg-btn-quiet" type="button" data-pgs="restart">Начать заново</button>' +
       '<button class="btn-register pg-btn-quiet" type="button" data-pgs="close">Закрыть</button></div></div>' +
       '<p class="pg-msg" id="pgsMsg" role="status"></p>';
@@ -269,7 +335,7 @@
   function render() {
     if (def.kind === 'cases') { renderCases(); return; }
     var g = def, s = cur.s;
-    var html = header(cur.finished ? 'Игра завершена' : esc(g.turnLabel(cur.t)) + ' · ход ' + (cur.t + 1) + ' из ' + g.turns + ' · ' + esc(g.role));
+    var html = header(cur.finished ? 'Симуляция завершена · ниже — итоги и управленческий разбор' : esc(g.turnLabel(cur.t)) + ' · ход ' + (cur.t + 1) + ' из ' + g.turns + ' · ' + esc(g.role));
     html += '<div class="pgs-progress"><span style="width:' + (Math.min(cur.t, g.turns) / g.turns * 100) + '%"></span></div>';
     html += '<div class="pgs-metrics">' + g.metrics.map(function (m) {
       var alert = m.alert && m.alert(s);
@@ -280,15 +346,30 @@
     html += '<div class="pg-grid2 pgs-grid">';
     html += '<div class="pg-col">';
     if (cur.finished) html += finalHtml();
-    else if (cur.event) html += eventHtml();
-    else html += decisionsHtml();
-    html += '<details class="pg-details pgs-rules"><summary>Правила и цель</summary><p>' + esc(g.goals) + '</p></details>';
+    else if (cur.event) html += eventHtml() + planFactHtml();
+    else html += planFactHtml() + decisionsHtml();
+    html += '<details class="pg-details pgs-rules"' + (cur.t === 0 && !cur.finished ? ' open' : '') + '><summary>Цель и правила</summary><p>' + esc(g.goals) + '</p></details>';
     html += '</div>';
     html += '<div class="pg-col">' + chartsHtml() + journalHtml() + '</div>';
     html += '</div>';
     work.innerHTML = html;
     bindWork();
     if (cur.finished) loadBoard();
+  }
+
+  var PF_STATUS = { start: ['исходное', ''], ok: ['по плану', 'ok'], warn: ['небольшое отставание', 'warn'], bad: ['отставание', 'bad'] };
+
+  function planFactHtml() {
+    if (!def.planFact) return '';
+    var rows = def.planFact(cur.s);
+    return '<fieldset class="pg-box"><legend>План-факт программы развития</legend><div class="pg-table-wrap"><table class="pg-table pgs-pf"><thead><tr>' +
+      '<th>Показатель</th><th class="num">Факт</th><th class="num">План на конец года</th><th class="num">Цель</th><th>Статус</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        var f = function (v) { return r.money ? fmtMoney(v) : fmtNum(Math.round(v)); };
+        var st = PF_STATUS[r.status] || PF_STATUS.start;
+        return '<tr><td>' + esc(r.title) + '</td><td class="num"><b>' + esc(f(r.fact)) + '</b></td><td class="num">' + esc(f(r.plan)) + '</td><td class="num">' + esc(f(r.target)) + '</td>' +
+          '<td>' + (st[1] ? '<span class="pill pill--' + st[1] + '">' + st[0] + '</span>' : '<span class="cell-sub">' + st[0] + '</span>') + '</td></tr>';
+      }).join('') + '</tbody></table></div><p class="pg-hint">Статус — сравнение факта с планом на конец прошлого года. Отставание больше 10% — красный.</p></fieldset>';
   }
 
   function eventHtml() {
@@ -315,18 +396,23 @@
         '<div class="pgs-alloc-sum' + (sum === 100 ? '' : ' is-off') + '">Сумма: ' + sum + '%' + (sum === 100 ? '' : ' — будет приведена к 100%') + '</div></fieldset>';
     }
     var n = cur.selected.length;
-    html += '<fieldset class="pg-box"><legend>' + (g.allocations ? 'Инициатива года (не больше одной)' : 'Решения квартала: выбрано ' + n + ' из ' + g.actionsPerTurn) + '</legend>' +
+    var pend = (s._pending || []).map(function (p) { return (g.actions.filter(function (x) { return x.id === p.id; })[0] || {}).title; }).filter(Boolean);
+    html += '<fieldset class="pg-box"><legend>' + (g.allocations ? 'Управленческая инициатива года (не больше одной, можно без неё)' : 'Решения квартала: выбрано ' + n + ' из ' + g.actionsPerTurn) + '</legend>' +
+      (pend.length ? '<p class="pgs-pending">На согласовании, исполнится в конце этого квартала: ' + pend.map(function (t) { return '«' + esc(t) + '»'; }).join(', ') + '</p>' : '') +
+      (g.actions.some(needsApproval) ? '<p class="pg-hint">Решения с пометкой «через согласование» ваша роль не принимает сама: они исполняются кварталом позже.</p>' : '') +
       '<div class="pgs-actions">' + g.actions.map(function (a) {
         var av = a.available ? a.available(s) : true;
+        if (av === true && (s._pending || []).some(function (p) { return p.id === a.id; })) av = 'на согласовании';
         var on = cur.selected.indexOf(a.id);
         var dis = av !== true;
         return '<button type="button" class="pgs-action' + (on >= 0 ? ' is-on' : '') + '" data-action="' + a.id + '"' + (dis ? ' disabled' : '') + '>' +
           (on >= 0 ? '<span class="pgs-ord">' + (on + 1) + '</span>' : '') +
           '<b>' + esc(a.title) + '</b><span class="pgs-cost">' + (a.cost ? esc(fmtMoney(a.cost)) : 'бесплатно') + '</span>' +
-          '<span class="pgs-note">' + esc(dis ? '🔒 ' + av : a.note) + '</span></button>';
+          '<span class="pgs-note">' + esc(dis ? '🔒 ' + av : a.note) + '</span>' +
+          (!dis && needsApproval(a) ? '<span class="pgs-appr">через согласование: ' + esc(a.approval.by) + '</span>' : '') + '</button>';
       }).join('') + '</div>' +
-      '<div class="pgs-endturn"><span>' + (g.allocations ? '' : 'Расходы на решения: <b>' + esc(fmtMoney(selectedCost())) + '</b> · после хода зарплаты и аренда') + '</span>' +
-      '<button class="btn-primary" type="button" data-pgs="end">' + (cur.t + 1 >= g.turns ? 'Завершить последний ход' : 'Завершить ход →') + '</button></div></fieldset>';
+      '<div class="pgs-endturn"><span>' + (g.allocations ? 'Инициатива оплачивается из бюджета года' : 'Расходы на решения: <b>' + esc(fmtMoney(selectedCost())) + '</b> · после хода — зарплаты и аренда') + '</span>' +
+      '<button class="btn-primary" type="button" data-pgs="end">' + (cur.t + 1 >= g.turns ? 'Подвести итоги' : (g.allocations ? 'Завершить год →' : 'Завершить квартал →')) + '</button></div></fieldset>';
     return html;
   }
 
@@ -352,7 +438,7 @@
   }
 
   function journalHtml() {
-    return '<fieldset class="pg-box"><legend>Журнал решений и событий</legend><div class="pgs-journal">' +
+    return '<fieldset class="pg-box"><legend>Журнал решений и событий</legend><div class="pgs-journal" tabindex="0">' +
       (cur.journal.length ? cur.journal.map(function (j) {
         return '<div class="pgs-j"><div class="pgs-j-head"><span>' + esc(j.label) + '</span><b>' + esc(j.title) + '</b></div>' +
           (j.lines.length ? '<ul>' + j.lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' : '') + '</div>';
@@ -361,21 +447,53 @@
 
   /* ---------- итог и таблица сессии ---------- */
 
-  var OUTCOME = { win: ['Победа', 'ok'], lose: ['Поражение', 'bad'], draw: ['Итог', 'warn'] };
+  var OUTCOME = { win: ['Цель достигнута', 'ok'], lose: ['Цель не достигнута', 'bad'], draw: ['Частичный результат', 'warn'] };
 
   function finalHtml() {
     var r = cur.result;
     var o = OUTCOME[r.outcome] || OUTCOME.draw;
     var html = '<div class="pgs-final pgs-final--' + o[1] + '"><div class="pgs-event-tag">' + esc(o[0]) + '</div>' +
       '<h3>' + esc(r.text) + '</h3>' +
-      (r.score != null ? '<div class="pgs-score"><b>' + esc(fmtNum(r.score)) + '</b><span>очков</span></div>' : '') +
-      (r.badges.length ? '<div class="pgs-badges">' + r.badges.map(function (b) { return '<span class="pill pill--done">★ ' + esc(b) + '</span>'; }).join('') + '</div>' : '') +
+      (r.score != null ? '<div class="pgs-score"><b>' + esc(fmtNum(r.score)) + '</b><span>баллов итоговой оценки</span></div>' : '') +
+      (r.badges.length ? '<div class="pgs-badges">' + r.badges.map(function (b) { return '<span class="pill pill--done">✓ ' + esc(b) + '</span>'; }).join('') + '</div>' : '') +
       '<table class="pg-table pgs-res"><tbody>' + Object.keys(r.metrics).map(function (k) {
         var v = r.metrics[k];
         return '<tr><td>' + esc(k) + '</td><td class="num"><b>' + esc(typeof v === 'number' ? fmtNum(v) : v) + '</b></td></tr>';
       }).join('') + '</tbody></table></div>';
+    if (def.debrief) html += debriefHtml(withRole(def.debrief(cur.s)));
     html += submitHtml();
     return html;
+  }
+
+  var LESSON = { ok: '✓', warn: '!', bad: '✕', info: 'i' };
+
+  /* взгляд роли и её вопросы — в начало и конец разбора */
+  function withRole(d) {
+    var role = curRole();
+    if (!d || !role) return d;
+    var lessons = [{ level: 'info', title: 'Взгляд вашей роли: ' + role.title, text: role.focus }];
+    var n = (cur.s && cur.s._approvals) || 0;
+    if (n) lessons.push({ level: 'warn', title: 'Решений через согласование: ' + n, text: 'Каждое из них исполнялось на квартал позже, чем вы его приняли. ' +
+      'В реальности сроки согласования часто дольше. Помогают заранее утверждённые правила (положения, типовые договоры, критерии отбора), делегирование полномочий и календарь заседаний комиссий, под который планируется проект.' });
+    return { lessons: lessons.concat(d.lessons || []), questions: (d.questions || []).concat(role.questions || []), transfer: d.transfer };
+  }
+
+  /* Управленческий разбор: выводы по решениям, вопросы, чек-лист для своего вуза */
+  function debriefHtml(d) {
+    if (!d) return '';
+    return '<fieldset class="pg-box pgs-debrief"><legend>Управленческий разбор</legend>' +
+      (d.lessons && d.lessons.length ? '<ul class="pgs-lessons">' + d.lessons.map(function (l) {
+        return '<li class="pgs-lesson pgs-lesson--' + esc(l.level || 'info') + '"><span>' + (LESSON[l.level] || 'i') + '</span><div><b>' + esc(l.title) + '</b><p>' + esc(l.text) + '</p></div></li>';
+      }).join('') + '</ul>' : '') +
+      listHtml('Вопросы для обсуждения в команде', d.questions) +
+      listHtml('Что проверить в своём вузе', d.transfer, true) + '</fieldset>';
+  }
+
+  function listHtml(title, items, check) {
+    if (!items || !items.length) return '';
+    return '<div class="pgs-dlist"><b>' + esc(title) + '</b><' + (check ? 'ul class="pgs-checklist"' : 'ol') + '>' + items.map(function (x) {
+      return '<li>' + esc(x) + '</li>';
+    }).join('') + '</' + (check ? 'ul' : 'ol') + '></div>';
   }
 
   function submitHtml() {
@@ -386,7 +504,7 @@
           '<button class="btn-primary" type="button" data-pgs="submit"' + (cur.submitted ? ' disabled' : '') + '>' + (cur.submitted ? 'Результат отправлен' : 'Отправить результат') + '</button></div>' +
           '<div id="pgsBoard" class="pgs-board"><p class="pg-hint">Загрузка таблицы…</p></div>' +
           '<button class="btn-register pg-btn-small" type="button" data-pgs="board">Обновить таблицу</button>'
-        : '<p class="pg-hint">Чтобы сравнить результаты команд, укажите код сессии над карточками игр (одинаковый у всех команд) и начните игру заново — у всех будут одни и те же события.</p>') +
+        : '<p class="pg-hint">Чтобы сравнить результаты команд, укажите код сессии над карточками (одинаковый у всех команд) и начните заново — у всех будут одни и те же события.</p>') +
       '</fieldset>';
   }
 
@@ -397,12 +515,12 @@
       var items = data.items || [];
       if (!items.length) { box.innerHTML = '<p class="pg-hint">В сессии ' + esc(cur.code) + ' пока нет результатов — будьте первыми.</p>'; return; }
       var isCases = def.kind === 'cases';
-      box.innerHTML = '<div class="pg-table-wrap"><table class="pg-table"><thead><tr><th>#</th><th>Команда</th>' +
-        (isCases ? '<th>Архетип</th>' : '<th class="num">Лучший</th><th class="num">Последний</th>') + '<th class="num">Попыток</th></tr></thead><tbody>' +
+      box.innerHTML = '<div class="pg-table-wrap"><table class="pg-table"><thead><tr><th>#</th><th>Команда</th><th>Роль</th>' +
+        (isCases ? '<th>Стиль</th>' : '<th class="num">Лучший</th><th class="num">Последний</th>') + '<th class="num">Попыток</th></tr></thead><tbody>' +
         items.map(function (it, i) {
           var mine = cur.team && String(it.team).toLowerCase() === String(cur.team).toLowerCase();
           return '<tr' + (mine ? ' class="pgs-mine"' : '') + '><td>' + (i + 1) + '</td><td><b>' + esc(it.team) + '</b>' +
-            (isCases ? '' : '<div class="cell-sub">' + esc(it.outcome) + '</div>') + '</td>' +
+            (isCases ? '' : '<div class="cell-sub">' + esc(it.outcome) + '</div>') + '</td><td>' + esc(it.role || '—') + '</td>' +
             (isCases ? '<td>' + esc(it.outcome) + '</td>' : '<td class="num"><b>' + esc(fmtNum(it.best)) + '</b></td><td class="num">' + esc(fmtNum(it.score)) + '</td>') +
             '<td class="num">' + esc(it.attempts) + '</td></tr>';
         }).join('') + '</tbody></table></div>';
@@ -419,7 +537,7 @@
     var r = cur.result;
     var o = OUTCOME[r.outcome] || OUTCOME.draw;
     var payload = {
-      code: cur.code, game: cur.game, team: team, score: r.score || 0,
+      code: cur.code, game: cur.game, team: team, score: r.score || 0, role: curRole() ? curRole().title : '',
       outcome: def.kind === 'cases' ? r.archetype : o[0] + ': ' + r.text,
       metrics: r.metrics
     };
@@ -436,11 +554,17 @@
   /* ---------- кейс-тренажёр ---------- */
 
   function renderTrackPick() {
+    var role = curRole();
+    var recs = role && Array.isArray(role.recommend[def.id]) ? role.recommend[def.id] : [];
+    var tracks = def.tracks.slice().sort(function (a, b) { return (recs.indexOf(a.id) < 0) - (recs.indexOf(b.id) < 0); });
     work.innerHTML = header(esc(def.role)) +
       '<p class="section-lead pgs-lead">' + esc(def.summary) + '</p>' +
-      '<div class="mdl-grid pgs-tracks">' + def.tracks.map(function (t) {
-        return '<button type="button" class="mdl-card imdl-card" data-track="' + t.id + '"><span class="mdl-card-name">' + esc(t.title) + '</span>' +
-          '<span class="mdl-card-out">' + Object.keys(t.nodes).length + ' ситуаций с ветвлениями</span></button>';
+      '<div class="mdl-grid pgs-tracks">' + tracks.map(function (t) {
+        var rec = recs.indexOf(t.id) >= 0;
+        return '<button type="button" class="mdl-card imdl-card' + (rec ? ' pgs-card--rec' : '') + '" data-track="' + t.id + '">' +
+          (rec ? '<span class="pgs-rec">Для вашей роли</span>' : '') + '<span class="mdl-card-name">' + esc(t.title) + '</span>' +
+          '<span class="mdl-card-out">' + (t.steps || 6) + ' решений; от выбора зависит, какая ситуация будет следующей</span>' +
+          '<span class="mdl-card-foot">Для: ' + (t.roles || []).map(function (id) { var r = roleOf(id); return r ? esc(r.title) : ''; }).filter(Boolean).join('; ') + '</span></button>';
       }).join('') + '</div>';
     bindWork();
   }
@@ -462,18 +586,25 @@
   function renderCases() {
     var tr = track();
     var node = tr.nodes[cur.node];
-    var html = header(esc(tr.title) + (cur.finished ? ' · профиль готов' : ' · ситуация ' + (cur.path.length + 1)));
+    var html = header(esc(tr.title) + (cur.finished ? ' · итоги и разбор' : ' · ситуация ' + (cur.path.length + 1) + ' из ' + (tr.steps || 6)));
     html += '<div class="pg-grid2 pgs-grid"><div class="pg-col">';
     if (cur.finished) {
       var p = profile();
       var top = p.ranked[0];
-      html += '<div class="pgs-final pgs-final--ok"><div class="pgs-event-tag">Ваш архетип</div><h3>' + esc(top.a.title) + ' · совпадение ' + top.match + '%</h3>' +
+      html += '<div class="pgs-final pgs-final--ok"><div class="pgs-event-tag">Ваш управленческий стиль</div><h3>' + esc(top.a.title) + ' · совпадение ' + top.match + '%</h3>' +
         '<p>' + esc(top.a.text) + '</p>' +
         '<div class="pgs-two"><div><b>Сильные стороны</b><ul>' + top.a.strengths.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' +
         '<div><b>Зоны роста</b><ul>' + top.a.growth.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div></div>' +
-        '<p class="pg-hint">Также близко: ' + p.ranked.slice(1, 3).map(function (x) { return esc(x.a.title) + ' (' + x.match + '%)'; }).join(', ') + '</p></div>';
+        '<p class="pg-hint">Также близко: ' + p.ranked.slice(1, 3).map(function (x) { return esc(x.a.title) + ' (' + x.match + '%)'; }).join(', ') + '. ' +
+        'Профиль описывает стиль решений в этих кейсах, а не оценивает компетентность.</p></div>';
+      html += debriefHtml(withRole({ lessons: [], questions: def.discussion, transfer: def.transfer }));
       html += submitHtml();
     } else {
+      var last = cur.path[cur.path.length - 1];
+      if (last && (last.c || last.insight)) {
+        html += '<div class="pgs-insight"><div class="pgs-event-tag">Ваше решение: ' + esc(last.label) + '</div>' +
+          (last.c ? '<p><b>Последствие.</b> ' + esc(last.c) + '</p>' : '') + (last.insight ? '<p><b>Что учесть.</b> ' + esc(last.insight) + '</p>' : '') + '</div>';
+      }
       html += '<div class="pgs-event"><div class="pgs-event-tag">Ситуация</div><h3>' + esc(node.title) + '</h3><p>' + esc(node.text) + '</p>' +
         '<div class="pgs-choices pgs-choices--col">' + node.choices.map(function (c, i) {
           return '<button type="button" class="btn-register" data-case="' + i + '">' + esc(c.label) + '</button>';
@@ -490,7 +621,8 @@
       }).join('') + '</fieldset>';
     html += '<fieldset class="pg-box"><legend>Ваш путь</legend><div class="pgs-journal">' +
       (cur.path.length ? cur.path.slice().reverse().map(function (st) {
-        return '<div class="pgs-j"><div class="pgs-j-head"><b>' + esc(st.title) + '</b></div><ul><li>' + esc(st.label) + '</li>' + (st.c ? '<li class="pgs-cons">→ ' + esc(st.c) + '</li>' : '') + '</ul></div>';
+        return '<div class="pgs-j"><div class="pgs-j-head"><b>' + esc(st.title) + '</b></div><ul><li>' + esc(st.label) + '</li>' + (st.c ? '<li class="pgs-cons">→ ' + esc(st.c) + '</li>' : '') +
+          (st.insight ? '<li class="pgs-cons"><i>Что учесть:</i> ' + esc(st.insight) + '</li>' : '') + '</ul></div>';
       }).join('') : '<p class="pg-hint">Здесь появятся ваши решения и их последствия.</p>') + '</div></fieldset>';
     html += '</div></div>';
     work.innerHTML = html;
@@ -504,7 +636,7 @@
     var c = node.choices[i];
     if (!c) return;
     Object.keys(c.t).forEach(function (k) { cur.traits[k] = (cur.traits[k] || 0) + c.t[k]; });
-    cur.path.push({ node: cur.node, title: node.title, label: c.label, c: c.c });
+    cur.path.push({ node: cur.node, title: node.title, label: c.label, c: c.c, insight: node.insight || '' });
     if (c.next && tr.nodes[c.next]) {
       cur.node = c.next;
     } else {
@@ -529,7 +661,7 @@
         var act = b.getAttribute('data-pgs');
         if (act === 'close') { work.hidden = true; $('pgsGames').scrollIntoView({ behavior: 'smooth' }); }
         if (act === 'restart') {
-          if (!cur.finished && !confirm('Начать игру заново? Текущий прогресс пропадёт.')) return;
+          if (!cur.finished && !confirm('Начать заново? Текущий прогресс пропадёт.')) return;
           dropSaved(cur.game, cur.code);
           var id = cur.game;
           cur = newGame(id, sessionCode());
@@ -582,6 +714,15 @@
   var p = prefs();
   if (p.code) $('pgsCode').value = p.code;
   if (p.team) $('pgsTeam').value = p.team;
+  var roleSel = $('pgsRole');
+  if (roleSel) {
+    roleSel.innerHTML = '<option value="">— выберите свою роль —</option>' + ROLES.map(function (r) {
+      return '<option value="' + esc(r.id) + '">' + esc(r.title) + '</option>';
+    }).join('');
+    if (p.role && roleOf(p.role)) roleSel.value = p.role;
+    roleSel.addEventListener('change', function () { roleSel.classList.remove('is-required'); savePrefs(); renderRoleInfo(); renderCards(); });
+  }
+  renderRoleInfo();
   $('pgsCode').addEventListener('change', function () { $('pgsCode').value = sessionCode(); savePrefs(); });
   $('pgsTeam').addEventListener('change', savePrefs);
   renderCards();

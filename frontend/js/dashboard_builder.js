@@ -5,7 +5,9 @@
 
    Пайплайн сборки — 6 шагов, дашборд начинается с чистого листа:
      1. Цель и аудитория — тип дашборда, вопросы, шаблон роли как подсказка;
-     2. Данные — демо-данные вуза или свой CSV/JSON; профиль полей;
+     2. Данные — демо-данные, ввод вручную (таблицы MANUAL из каталога:
+        заполнить в окне, вставить из Excel, скачать шаблон CSV) или свой
+        CSV/JSON; CSV по шаблону распознаётся как таблица ручного ввода;
      3. Показатели — предложения KPI и план-факт по данным и шаблону;
      4. Визуализации — рекомендации графиков по типам полей, галерея
         визуализаций и управленческих элементов;
@@ -27,11 +29,11 @@
   var MAX_ROWS = 3000;
   var $ = function (id) { return document.getElementById(id); };
 
-  var KIND_TITLES = { cat: 'Категория', ord: 'Порядковое', num: 'Число', money: 'Деньги', pct: 'Проценты', date: 'Дата', text: 'Текст' };
-  var SIZE_TITLES = { s: 'треть ширины', m: 'половина', l: 'две трети', xl: 'вся ширина' };
+  var KIND_TITLES = { cat: 'Категория', ord: 'Шкала / год', num: 'Число', money: 'Деньги, тыс. ₽', pct: 'Проценты', date: 'Дата', text: 'Название' };
+  var SIZE_TITLES = { s: 'треть ширины', m: 'половина ширины', l: 'две трети ширины', xl: 'вся ширина' };
   var PALETTE = ['var(--dbb-c1)', 'var(--dbb-c2)', 'var(--dbb-c3)', 'var(--dbb-c4)', 'var(--dbb-c5)', 'var(--dbb-c6)', 'var(--dbb-c7)', 'var(--dbb-c8)'];
 
-  var st = { bundle: null, remote: false, saveTimer: null, step: 'goal', view: false, demo: null, data: null, dataKey: '', dragId: null, vizTable: '' };
+  var st = { bundle: null, remote: false, saveTimer: null, step: 'goal', view: false, demo: null, demoRaw: null, data: null, dataKey: '', dataRev: 0, dragId: null, vizTable: '', manual: null };
 
   /* ---------- утилиты ---------- */
 
@@ -87,9 +89,26 @@
       var s = r.status && vStatus[r.status] ? r.status : (Number(r.progress) >= 100 ? 'done' : (new Date(r.due) < asOf ? 'overdue' : (Number(r.progress) < 30 ? 'risk' : 'on_track')));
       return Object.assign({}, r, { _status: vStatus[s] });
     });
+    /* сводные показатели: выполнение плана и статус (≥100% — выполнен, ≥80% — близко, ниже — отставание) */
+    tables.indicators = (raw.indicators || []).map(function (r) {
+      var plan = Number(r.plan), fact = Number(r.fact);
+      var has = r.plan !== '' && r.plan != null && r.fact !== '' && r.fact != null && plan > 0 && !isNaN(fact);
+      var pct = has ? Math.round(fact / plan * 1000) / 10 : '';
+      return Object.assign({}, r, { _pct: pct, _status: !has ? 'Нет плана или факта' : pct >= 100 ? 'Выполнен' : pct >= 80 ? 'Близко к плану' : 'Отставание' });
+    });
     var out = {};
-    Object.keys(C.DEMO).forEach(function (k) { out[k] = { title: C.DEMO[k].title, rows: tables[k], known: C.DEMO[k].fields }; });
+    Object.keys(C.DEMO).forEach(function (k) {
+      if (Array.isArray(raw[k])) out[k] = { title: C.DEMO[k].title, rows: tables[k], known: C.DEMO[k].fields };
+    });
     return out;
+  }
+
+  /* Ручной ввод: таблицы с хотя бы одной строкой → в формат демо-данных */
+  function manualRaw(source) {
+    var raw = { as_of: null, stale_years: 2, funding_stages: [] };
+    var t = (source && source.tables) || {};
+    Object.keys(C.MANUAL).forEach(function (k) { if (Array.isArray(t[k]) && t[k].length) raw[k] = t[k]; });
+    return raw;
   }
 
   function isAiosShape(obj) { return obj && Array.isArray(obj.projects) && Array.isArray(obj.funding_stages); }
@@ -159,7 +178,9 @@
 
   function buildData(source, kindsOverride) {
     var tables = {};
-    if (!source || source.kind !== 'upload') {
+    if (source && source.kind === 'manual') {
+      tables = enrichDemo(manualRaw(source));
+    } else if (!source || source.kind !== 'upload') {
       tables = st.demo || {};
     } else if (source.shape === 'aios') {
       tables = enrichDemo(source.raw || {});
@@ -198,7 +219,7 @@
 
   function data() {
     var lay = layout();
-    var key = JSON.stringify([lay ? lay.id : '', lay && lay.source && lay.source.kind, lay && lay.source && lay.source.name, lay && lay.meta && lay.meta.kinds, !!st.demo]);
+    var key = JSON.stringify([lay ? lay.id : '', lay && lay.source && lay.source.kind, lay && lay.source && lay.source.name, lay && lay.meta && lay.meta.kinds, !!st.demo, st.dataRev]);
     if (st.dataKey !== key) { st.data = buildData(lay && lay.source, lay && lay.meta && lay.meta.kinds); st.dataKey = key; }
     return st.data;
   }
@@ -315,7 +336,7 @@
   function autoNote(cfg) {
     var a = C.AGGS[cfg.agg || 'count'];
     if (cfg.agg === 'share') return 'доля «' + (cfg.shareValue || '…') + '»';
-    if (!cfg.agg || cfg.agg === 'count') return 'записей в «' + (table(cfg.table) || {}).title + '»' + (cfg.filterField && cfg.filterValue ? ': ' + cfg.filterValue : '');
+    if (!cfg.agg || cfg.agg === 'count') return 'строк в таблице «' + (table(cfg.table) || {}).title + '»' + (cfg.filterField && cfg.filterValue ? ': ' + cfg.filterValue : '');
     return a.toLowerCase() + ' «' + fTitle(cfg.table, cfg.field) + '»';
   }
 
@@ -531,10 +552,11 @@
     var ok = Number(cfg.okFrom) || 70, bad = Number(cfg.badBelow) || 30;
     var rows = filtered(cfg).slice().sort(function (a, b) { return (Number(a[cfg.valueField]) || 0) - (Number(b[cfg.valueField]) || 0); });
     return '<div class="dbb-progress">' + rows.map(function (r) {
-      var v = Math.max(0, Math.min(100, Number(r[cfg.valueField]) || 0));
-      var cls = v >= ok ? 'ok' : v < bad ? 'bad' : 'warn';
-      return '<div class="dbb-bar-row"><span class="dbb-bar-key">' + esc(r[cfg.labelField]) + '</span>' +
-        '<span class="dbb-bar-track"><span class="pm-' + cls + '" style="width:' + v + '%"></span></span><span class="dbb-bar-val">' + Math.round(v) + '%</span></div>';
+      var real = Number(r[cfg.valueField]) || 0;
+      var v = Math.max(0, Math.min(100, real));
+      var cls = real >= ok ? 'ok' : real < bad ? 'bad' : 'warn';
+      return '<div class="dbb-bar-row"><span class="dbb-bar-key" title="' + esc(r[cfg.labelField]) + '">' + esc(r[cfg.labelField]) + '</span>' +
+        '<span class="dbb-bar-track"><span class="pm-' + cls + '" style="width:' + v + '%"></span></span><span class="dbb-bar-val">' + Math.round(real) + '%</span></div>';
     }).join('') + '</div><p class="widget-sub">Зелёный — от ' + ok + '%, красный — ниже ' + bad + '%.</p>';
   }
 
@@ -580,7 +602,7 @@
   function migrate(b) {
     (b.layouts || []).forEach(function (l) {
       l.meta = l.meta || { step: 'layout' };
-      l.source = l.source || { kind: 'demo' };
+      if (!l.source || ['demo', 'upload', 'manual'].indexOf(l.source.kind) < 0) l.source = { kind: 'demo' };
       l.widgets = (l.widgets || []).filter(function (w) { return w.type !== 'builtin'; }).map(function (w) {
         if (w.type === 'metric') w.type = 'kpi';
         if (w.cfg && w.cfg.dataset && !w.cfg.table) { w.cfg.table = w.cfg.dataset; delete w.cfg.dataset; }
@@ -684,14 +706,17 @@
     var lay = layout();
     var m = lay.meta || {};
     var kind = C.KINDS.filter(function (k) { return k.id === m.kind; })[0];
-    var src = lay.source && lay.source.kind === 'upload' ? 'данные: ' + (lay.source.name || 'свой файл') : 'данные: демо-данные вуза';
+    var sk = lay.source && lay.source.kind;
+    var src = sk === 'upload' ? 'данные: ' + (lay.source.name || 'свой файл') : sk === 'manual' ? 'данные: введены вручную' : 'данные: демо-данные (пример)';
     $('dbbCanvasHead').innerHTML = '<div><h2 class="dbb-dash-title">' + esc(lay.name) + '</h2><p class="widget-sub">' +
       esc([kind ? kind.title + ' дашборд' : '', m.audience ? 'для: ' + m.audience : '', m.period ? 'обновление: ' + m.period : '', src].filter(Boolean).join(' · ')) + '</p>' +
-      (m.purpose ? '<p class="dbb-purpose">' + esc(m.purpose) + '</p>' : '') + '</div>';
+      (m.purpose ? '<p class="dbb-purpose">' + esc(m.purpose) + '</p>' : '') + '</div>' +
+      (st.view ? '' : '<button class="dash-btn" type="button" data-step="data" title="Перейти к шагу 2: ввести или заменить данные">✎ Данные дашборда</button>');
     var canvas = $('dbbCanvas');
     if (!lay.widgets.length) {
       canvas.innerHTML = '<div class="dbb-empty"><div class="dbb-empty-title">Дашборд пока пуст</div>' +
-        '<p>Пройдите шаги слева: опишите цель, выберите данные — и конструктор предложит показатели, графики и шаблоны. Всё добавляется по одному нажатию.</p>' +
+        '<p>Быстрый путь к готовому дашборду: на шаге 1 выберите шаблон роли, на шаге 2 введите свои данные (или возьмите пример), затем нажмите «Собрать дашборд по шаблону».</p>' +
+        '<p>Или собирайте по шагам: конструктор предложит показатели и графики по вашим данным. Всё добавляется по одному нажатию и настраивается кнопкой ⚙.</p>' +
         '<ol class="dbb-pipe">' + C.STEPS.map(function (s) { return '<li><span>' + s.n + '</span>' + esc(s.title) + '</li>'; }).join('') + '</ol></div>';
       return;
     }
@@ -767,7 +792,8 @@
     var m = lay.meta;
     var tpl = C.TEMPLATES.filter(function (t) { return t.id === m.template; })[0];
     return '<h3 class="dbb-ph">1. Цель и аудитория</h3>' +
-      '<p class="dbb-tip">Хороший дашборд отвечает на 3–5 конкретных вопросов одного адресата. Сначала решите, <b>кто</b> смотрит и <b>какие решения</b> принимает.</p>' +
+      '<p class="dbb-tip">Хороший дашборд отвечает на 3–5 конкретных вопросов одного адресата. Сначала решите, <b>кто</b> смотрит и <b>какие решения</b> принимает. ' +
+      'Быстрее всего начать с шаблона роли внизу.</p>' +
       '<label class="mdl-field"><span>Название дашборда</span><input data-meta="name" maxlength="80" value="' + esc(lay.name) + '"></label>' +
       '<div class="mdl-field"><span>Тип дашборда</span><div class="dbb-kinds">' + C.KINDS.map(function (k) {
         return '<button type="button" class="dbb-kindcard' + (m.kind === k.id ? ' is-on' : '') + '" data-kind="' + k.id + '"><b>' + esc(k.title) + '</b><span>' + esc(k.hint) + '</span></button>';
@@ -778,14 +804,25 @@
       '<label class="mdl-field"><span>Как часто смотрят</span><select data-meta="period">' + ['', 'ежедневно', 'еженедельно', 'ежемесячно', 'ежеквартально', 'к заседанию / сессии'].map(function (p) {
         return '<option value="' + esc(p) + '"' + (m.period === p ? ' selected' : '') + '>' + esc(p || '—') + '</option>';
       }).join('') + '</select></label>' +
-      '<div class="dbb-sub">Шаблоны ролей — как подсказка</div>' +
-      '<p class="dbb-hint">Шаблон заполнит пустые поля цели и подскажет элементы на шагах 3–4. На холст ничего не добавляется без вашего нажатия.</p>' +
+      '<div class="dbb-sub">Шаблоны ролей</div>' +
+      '<p class="dbb-hint">Шаблон заполнит пустые поля цели и подскажет элементы на шагах 3–4. На холст ничего не добавляется без вашего нажатия. ' +
+      'Цели и пороги в шаблонах — примерные: замените их своими (кнопка ⚙ на элементе).</p>' +
       '<div class="dbb-cards">' + C.TEMPLATES.map(function (t) {
         return '<button type="button" class="dbb-card' + (m.template === t.id ? ' is-on' : '') + '" data-template="' + t.id + '"><b>' + esc(t.title) + '</b><span>' + esc(t.audience) + '</span></button>';
       }).join('') + '</div>' +
       (tpl ? '<div class="dbb-tplbox"><b>Вопросы шаблона «' + esc(tpl.title) + '»</b><ul>' + tpl.questions.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ul>' +
-        '<button class="btn-register pg-btn-small" type="button" data-tpl-all="' + tpl.id + '">Добавить все рекомендуемые элементы (' + recipes(tpl).length + ')</button></div>' : '') +
+        (tpl.dataNote ? '<p class="dbb-hint">' + esc(tpl.dataNote) + '</p>' : '') + tplButton(tpl) + '</div>' : '') +
       navHtml();
+  }
+
+  /* Кнопка «собрать по шаблону»: сколько элементов шаблона строится по текущим данным */
+  function tplButton(tpl) {
+    var n = recipes(tpl).length, all = tpl.recipes.length;
+    var have = existingKeys();
+    var fresh = recipes(tpl).filter(function (r) { return !have[sugKey(r)]; }).length;
+    return '<button class="btn-primary pg-btn-small" type="button" data-tpl-all="' + tpl.id + '"' + (fresh ? '' : ' disabled') + '>' +
+      (fresh ? 'Собрать дашборд по шаблону: добавить ' + fresh + ' элем.' : 'Все элементы шаблона уже на дашборде') + '</button>' +
+      (n < all ? '<p class="dbb-hint">' + (all - n) + ' из ' + all + ' элементов шаблона не строятся по текущим данным — для них нужны другие таблицы (шаг 2).</p>' : '');
   }
 
   function recipes(tpl) {
@@ -811,31 +848,314 @@
 
   /* ---------- шаг 2: данные ---------- */
 
+  var MANUAL_ORDER = ['indicators', 'projects', 'patents', 'teams', 'venture_tracker'];
+
   function panelData(lay) {
     var src = lay.source || { kind: 'demo' };
+    var sk = src.kind === 'upload' || src.kind === 'manual' ? src.kind : 'demo';
     var d = data();
     var keys = Object.keys(d);
-    return '<h3 class="dbb-ph">2. Данные</h3>' +
-      '<p class="dbb-tip">Конструктор сам определяет тип каждого поля: от него зависит, какие показатели и графики он предложит. Тип можно поправить вручную.</p>' +
+    var tpl = C.TEMPLATES.filter(function (t) { return t.id === lay.meta.template; })[0];
+    var html = '<h3 class="dbb-ph">2. Данные</h3>' +
+      '<p class="dbb-tip">Выберите, откуда взять данные. <b>Нет готовых файлов — не страшно:</b> выберите «Ввести свои данные вручную» и заполните ' +
+      'готовые таблицы прямо здесь или вставьте строки из Excel.</p>' +
       '<div class="dbb-sources">' +
-      '<button type="button" class="dbb-kindcard' + (src.kind !== 'upload' ? ' is-on' : '') + '" data-source="demo"><b>Демо-данные вуза</b><span>Проекты, РИД, стартап-коллективы, трекер обязательств — как на «Примере дашборда»</span></button>' +
-      '<label class="dbb-kindcard' + (src.kind === 'upload' ? ' is-on' : '') + '"><b>Свой файл: CSV или JSON</b><span>' +
-      (src.kind === 'upload' ? 'Загружен: ' + esc(src.name || 'файл') + '. Нажмите, чтобы заменить' : 'Первая строка CSV — названия столбцов; разделитель «;» или «,»; до ' + MAX_ROWS + ' строк') + '</span>' +
-      '<input type="file" id="dbbUpload" accept=".csv,.json,.txt,text/csv,application/json" hidden></label></div>' +
-      (keys.length ? keys.map(function (k) {
-        var t = d[k];
-        return '<details class="dbb-profile"' + (keys.length === 1 ? ' open' : '') + '><summary><b>' + esc(t.title) + '</b> <span>' + t.rows.length + ' строк · ' + Object.keys(t.fields).length + ' полей</span></summary>' +
-          '<table class="dbb-ptable"><tbody>' + Object.keys(t.fields).map(function (f) {
-            var x = t.fields[f];
-            return '<tr><td><b>' + esc(x.title) + '</b><div class="cell-sub">' + esc(x.top.slice(0, 3).join(' · ')) + '</div></td>' +
-              '<td><select data-kindfield="' + esc(k + '.' + f) + '">' + Object.keys(KIND_TITLES).map(function (kk) {
-                return '<option value="' + kk + '"' + (kk === x.kind ? ' selected' : '') + '>' + KIND_TITLES[kk] + '</option>';
-              }).join('') + '</select></td><td class="num">' + x.distinct + '<div class="cell-sub">разных</div></td></tr>';
-          }).join('') + '</tbody></table></details>';
-      }).join('') : '<p class="dbb-hint">Загрузка данных…</p>') +
-      '<p class="dbb-hint">Категория — для разрезов и долей; порядковое (УГТ, год) — для столбцов и воронок; число, деньги, проценты — для сумм и средних; дата — для сроков.</p>' +
-      '<label class="imdl-check"><input type="checkbox" data-confirm-data' + (lay.meta.dataConfirmed ? ' checked' : '') + '> Данные проверены, типы полей верные</label>' +
-      navHtml();
+      '<button type="button" class="dbb-kindcard' + (sk === 'demo' ? ' is-on' : '') + '" data-source="demo"><b>Пример: демо-данные</b>' +
+        '<span>Условный вуз: проекты, РИД, стартап-коллективы, обязательства стартапов — как на «Примере дашборда». Чтобы посмотреть, как всё работает.</span></button>' +
+      '<button type="button" class="dbb-kindcard' + (sk === 'manual' ? ' is-on' : '') + '" data-source="manual"><b>Ввести свои данные вручную</b>' +
+        '<span>Готовые таблицы: сводные показатели, проекты, РИД, команды, обязательства. Заполните то, по чему есть данные.</span></button>' +
+      '<label class="dbb-kindcard' + (sk === 'upload' ? ' is-on' : '') + '"><b>Загрузить файл: CSV или JSON</b><span>' +
+        (sk === 'upload' ? 'Загружен: ' + esc(src.name || 'файл') + '. Нажмите, чтобы заменить' : 'Таблица из Excel, сохранённая как CSV. До ' + MAX_ROWS + ' строк') + '</span>' +
+        '<input type="file" id="dbbUpload" accept=".csv,.json,.txt,text/csv,application/json" hidden></label></div>';
+
+    if (sk === 'manual') {
+      var t = src.tables || {};
+      html += '<div class="dbb-sub">Таблицы для ввода</div>' +
+        '<p class="dbb-hint">Заполните одну-две таблицы, по которым у вас есть данные. Остальные можно не трогать — на дашборде будут только заполненные.</p>' +
+        '<div class="dbb-mtables">' + MANUAL_ORDER.map(function (k) {
+          var m = C.MANUAL[k], n = (t[k] || []).length;
+          return '<div class="dbb-mtable' + (n ? ' is-filled' : '') + '"><div class="dbb-mtable-head"><b>' + esc(m.title) + '</b><span>' + (n ? n + ' строк' : 'не заполнена') + '</span></div>' +
+            '<p>' + esc(m.hint) + '</p><div class="dbb-quick"><button type="button" class="' + (n ? 'btn-register' : 'btn-primary') + ' pg-btn-small" data-manual-open="' + k + '">' + (n ? 'Изменить данные' : 'Заполнить') + '</button>' +
+            '<button type="button" class="dbb-link" data-manual-csv="' + k + '">Шаблон для Excel</button></div></div>';
+        }).join('') + '</div>';
+    }
+
+    html += '<details class="dbb-help"' + (sk === 'upload' && !keys.length ? ' open' : '') + '><summary>Как подготовить файл в Excel</summary><ol>' +
+      '<li>Первая строка — названия столбцов, дальше — по строке на объект (проект, РИД, показатель).</li>' +
+      '<li>Суммы — в <b>тысячах рублей</b>, даты — в виде 31.12.2026, проценты — числом от 0 до 100.</li>' +
+      '<li>В Excel: «Файл» → «Сохранить как» → тип «CSV (разделители — запятые)». В русской версии Excel разделителем будет «;» — это нормально.</li>' +
+      '<li>Удобнее всего начать с шаблона: ' + MANUAL_ORDER.map(function (k) {
+        return '<button type="button" class="dbb-link" data-manual-csv="' + k + '">' + esc(C.MANUAL[k].title) + '</button>';
+      }).join(', ') + '. Файл по шаблону конструктор узнает сам, и для него сработают шаблоны ролей.</li></ol></details>';
+
+    if (keys.length) {
+      html += '<div class="dbb-sub">Что получилось: таблицы и поля</div>' +
+        '<p class="dbb-hint">Конструктор сам определяет тип каждого поля — от него зависит, какие показатели и графики он предложит. Если тип определился неверно, поправьте его в списке.</p>' +
+        keys.map(function (k) {
+          var tb = d[k];
+          return '<details class="dbb-profile"' + (keys.length === 1 ? ' open' : '') + '><summary><b>' + esc(tb.title) + '</b> <span>' + tb.rows.length + ' строк · ' + Object.keys(tb.fields).length + ' полей</span></summary>' +
+            '<table class="dbb-ptable"><tbody>' + Object.keys(tb.fields).map(function (f) {
+              var x = tb.fields[f];
+              return '<tr><td><b>' + esc(x.title) + '</b><div class="cell-sub">' + esc(x.top.slice(0, 3).join(' · ')) + '</div></td>' +
+                '<td><select data-kindfield="' + esc(k + '.' + f) + '" aria-label="Тип поля ' + esc(x.title) + '">' + Object.keys(KIND_TITLES).map(function (kk) {
+                  return '<option value="' + kk + '"' + (kk === x.kind ? ' selected' : '') + '>' + KIND_TITLES[kk] + '</option>';
+                }).join('') + '</select></td><td class="num">' + x.distinct + '<div class="cell-sub">разных</div></td></tr>';
+            }).join('') + '</tbody></table></details>';
+        }).join('') +
+        '<p class="dbb-hint"><b>Категория</b> — повторяющиеся значения (подразделение, статус): для разрезов и долей. <b>Шкала / год</b> — УГТ, годы, этапы: для столбцов и воронок. ' +
+        '<b>Число, деньги, проценты</b> — для сумм и средних. <b>Дата</b> — для сроков. <b>Название</b> — подписи строк.</p>';
+    } else {
+      html += '<p class="dbb-warn">' + (st.demo === null ? 'Загрузка данных…' : sk === 'manual' ? 'Пока нет данных: откройте любую таблицу выше и заполните хотя бы одну строку.' : 'В источнике нет таблиц с данными.') + '</p>';
+    }
+
+    if (keys.length) {
+      html += tpl
+        ? '<div class="dbb-tplbox"><b>Готовый дашборд по шаблону «' + esc(tpl.title) + '»</b>' + (tpl.dataNote ? '<p class="dbb-hint">' + esc(tpl.dataNote) + '</p>' : '') + tplButton(tpl) + '</div>'
+        : '<p class="dbb-hint">Хотите готовый дашборд одной кнопкой? Выберите шаблон роли на <button type="button" class="dbb-link" data-step="goal">шаге 1</button>.</p>';
+      html += '<label class="imdl-check"><input type="checkbox" data-confirm-data' + (lay.meta.dataConfirmed ? ' checked' : '') + '> Данные проверены: таблицы и типы полей верные</label>';
+    }
+    return html + navHtml();
+  }
+
+  /* ---------- ручной ввод данных ---------- */
+
+  function emptyRow(tk) { var o = {}; C.MANUAL[tk].cols.forEach(function (c) { o[c.key] = ''; }); return o; }
+
+  /* демо-данные в виде строк ручного ввода — «подставить пример» */
+  function demoRows(tk) {
+    var raw = st.demoRaw;
+    if (!raw || !Array.isArray(raw[tk])) return [];
+    var stages = {};
+    (raw.funding_stages || []).forEach(function (x) { stages[x.key] = x.title; });
+    var proj = {};
+    (raw.projects || []).forEach(function (x) { proj[x.id] = x.title; });
+    var persp = { high: 'Высокая', low: 'Низкая' };
+    var fund = { grant: 'Другие гранты', internal: 'Внутреннее финансирование', state: 'Госзадание' };
+    return raw[tk].map(function (r) {
+      var o = emptyRow(tk);
+      C.MANUAL[tk].cols.forEach(function (c) { if (r[c.key] != null) o[c.key] = r[c.key]; });
+      if (tk === 'projects') o.funding_stage = stages[r.funding_stage] || r.funding_stage || '';
+      if (tk === 'patents') o.perspective = persp[r.perspective] || r.perspective || '';
+      if (tk === 'teams') { o.funding = fund[r.funding] || r.funding || ''; o.project = proj[r.project] || r.project || ''; }
+      return o;
+    });
+  }
+
+  function cellValue(col, v) {
+    if (v == null) return '';
+    var x = String(v).trim();
+    if (x === '') return '';
+    if (col.type === 'int' || col.type === 'num') {
+      var n = Number(x.replace(/\s/g, '').replace(',', '.').replace(/%$/, ''));
+      if (isNaN(n)) return x;
+      return col.type === 'int' ? Math.round(n) : n;
+    }
+    if (col.type === 'date') return String(normalizeCell(x));
+    return x;
+  }
+
+  function convRow(tk, r) {
+    var o = {};
+    C.MANUAL[tk].cols.forEach(function (c) { o[c.key] = cellValue(c, r[c.key]); });
+    return o;
+  }
+
+  function rowErrors(tk, r) {
+    var errs = [];
+    C.MANUAL[tk].cols.forEach(function (c) {
+      var v = r[c.key];
+      if (v === '' || v == null) return;
+      if ((c.type === 'int' || c.type === 'num') && typeof v !== 'number') errs.push('«' + c.title + '»: нужно число');
+      else if (typeof v === 'number' && ((c.min != null && v < c.min) || (c.max != null && v > c.max))) errs.push('«' + c.title + '»: от ' + c.min + ' до ' + c.max);
+      if (c.type === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(String(v))) errs.push('«' + c.title + '»: дата в виде 31.12.2026');
+    });
+    return errs;
+  }
+
+  function openManual(tk) {
+    var lay = layout();
+    var saved = ((lay.source && lay.source.tables) || {})[tk] || [];
+    var m = C.MANUAL[tk];
+    var rows = saved.length ? clone(saved) : (m.starter ? clone(m.starter) : []);
+    while (rows.length < 3) rows.push(emptyRow(tk));
+    st.manual = { tk: tk, rows: rows, paste: false };
+    drawManual();
+    $('dbbDataModal').hidden = false;
+    var first = $('dbbDataBody').querySelector('input');
+    if (first) first.focus();
+  }
+
+  function drawManual() {
+    var mm = st.manual, m = C.MANUAL[mm.tk];
+    $('dbbDataTitle').textContent = 'Ввод данных: ' + m.title;
+    var lists = m.cols.filter(function (c) { return c.options; }).map(function (c) {
+      return '<datalist id="dbbList-' + c.key + '">' + c.options.map(function (o) { return '<option value="' + esc(o) + '">'; }).join('') + '</datalist>';
+    }).join('');
+    var hasDemo = st.demoRaw && Array.isArray(st.demoRaw[mm.tk]);
+    $('dbbDataBody').innerHTML = '<p class="dbb-tip">' + esc(m.hint) + (m.starter ? ' Названия показателей — примеры: замените их показателями вашей программы развития.' : '') + '</p>' +
+      '<div class="dbb-quick">' +
+        '<button type="button" class="btn-register pg-btn-small" data-m="add">+ Добавить строку</button>' +
+        '<button type="button" class="btn-register pg-btn-small" data-m="paste">' + (mm.paste ? 'Скрыть вставку' : 'Вставить из Excel') + '</button>' +
+        (hasDemo ? '<button type="button" class="btn-register pg-btn-small" data-m="demo">Подставить пример</button>' : '') +
+        '<button type="button" class="btn-register pg-btn-small" data-m="csv">Скачать шаблон для Excel</button>' +
+        '<button type="button" class="btn-register pg-btn-small" data-m="clear">Очистить таблицу</button></div>' +
+      (mm.paste ? '<div class="dbb-paste"><p class="dbb-hint">Выделите в Excel строки с данными, скопируйте (Ctrl+C) и вставьте сюда (Ctrl+V). Порядок столбцов: <b>' +
+        m.cols.map(function (c) { return esc(c.title); }).join(' · ') + '</b>. Строку заголовков можно не убирать.</p>' +
+        '<textarea id="dbbPasteText" rows="5" placeholder="Вставьте строки из Excel"></textarea>' +
+        '<div class="dbb-quick"><button type="button" class="btn-primary pg-btn-small" data-m="paste-apply">Добавить строки в таблицу</button></div></div>' : '') +
+      lists +
+      '<div class="dbb-grid-wrap"><table class="dbb-grid"><thead><tr><th class="dbb-grid-n">№</th>' + m.cols.map(function (c) {
+        return '<th class="' + (c.width === 'wide' ? 'is-wide' : '') + '">' + esc(c.title) + '</th>';
+      }).join('') + '<th></th></tr></thead><tbody>' + mm.rows.map(function (r, i) {
+        var errs = rowErrors(mm.tk, convRow(mm.tk, r));
+        return '<tr' + (errs.length ? ' class="has-err" title="' + esc(errs.join('; ')) + '"' : '') + '><td class="dbb-grid-n">' + (i + 1) + '</td>' + m.cols.map(function (c) {
+          var v = r[c.key] == null ? '' : r[c.key];
+          var attrs = ' data-cell="' + i + ':' + c.key + '" aria-label="' + esc(c.title) + ', строка ' + (i + 1) + '"';
+          if (c.type === 'date') return '<td><input type="date"' + attrs + ' value="' + esc(/^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? v : '') + '"></td>';
+          if (c.type === 'int' || c.type === 'num') return '<td><input inputmode="decimal" class="num"' + attrs + ' value="' + esc(v) + '"></td>';
+          return '<td' + (c.width === 'wide' ? ' class="is-wide"' : '') + '><input' + attrs + (c.options ? ' list="dbbList-' + c.key + '"' : '') + ' value="' + esc(v) + '" title="' + esc(v) + '"></td>';
+        }).join('') + '<td><button type="button" class="dbb-grid-del" data-m="del:' + i + '" title="Удалить строку">✕</button></td></tr>';
+      }).join('') + '</tbody></table></div>' +
+      '<p class="dbb-hint">' + (m.cols.some(function (c) { return /тыс\. ₽/.test(c.title); }) ? 'Суммы — в тысячах рублей. ' : '') +
+        'Даты можно вписать как 31.12.2026 или выбрать в календаре. В столбцах со списком можно выбрать готовое значение или вписать своё. ' +
+        'Обязательно заполните «' + m.need.map(function (k) { return m.cols.filter(function (c) { return c.key === k; })[0].title; }).join('» или «') + '» — пустые строки не сохраняются.</p>' +
+      '<p class="pg-msg" id="dbbDataMsg" role="status"></p>' +
+      '<div class="dbb-form-actions"><button type="button" class="btn-primary" data-m="save">Сохранить и показать на дашборде</button>' +
+      '<button type="button" class="btn-register" data-m="cancel">Отмена</button></div>';
+  }
+
+  function manualMsg(text) { var n = $('dbbDataMsg'); if (n) n.textContent = text; }
+
+  function isEmptyRow(r) { return Object.keys(r).every(function (k) { return r[k] === '' || r[k] == null; }); }
+
+  function pasteRows(tk, text) {
+    var m = C.MANUAL[tk];
+    var lines = String(text || '').replace(/\r/g, '').split('\n').filter(function (l) { return l.trim() !== ''; });
+    var sep = lines.some(function (l) { return l.indexOf('\t') >= 0; }) ? '\t' : ';';
+    var norm = function (x) { return String(x || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim(); };
+    var out = [];
+    lines.forEach(function (l, li) {
+      var cells = l.split(sep);
+      if (li === 0 && norm(cells[0]) === norm(m.cols[0].title)) return;  // строка заголовков
+      var o = emptyRow(tk);
+      m.cols.forEach(function (c, i) { o[c.key] = cellValue(c, cells[i]); });
+      if (!isEmptyRow(o)) out.push(o);
+    });
+    return out;
+  }
+
+  function saveManual() {
+    var mm = st.manual, m = C.MANUAL[mm.tk];
+    var rows = mm.rows.map(function (r) { return convRow(mm.tk, r); });
+    var kept = rows.filter(function (r) { return m.need.some(function (k) { return r[k] !== '' && r[k] != null; }); });
+    var dropped = rows.filter(function (r) { return !isEmptyRow(r); }).length - kept.length;
+    var bad = kept.filter(function (r) { return rowErrors(mm.tk, r).length; }).length;
+    if (bad && !confirm('В ' + bad + ' строк(ах) есть ошибки (подсвечены красным, подробности — при наведении). Сохранить как есть?')) {
+      mm.rows = rows; drawManual(); return;
+    }
+    if (dropped > 0 && !confirm(dropped + ' строк(и) не будут сохранены: в них не заполнено «' +
+        m.need.map(function (k) { return m.cols.filter(function (c) { return c.key === k; })[0].title; }).join('» или «') + '». Продолжить?')) return;
+    var l = layout();
+    if (!l.source || l.source.kind !== 'manual') l.source = { kind: 'manual', name: 'Данные, введённые вручную', tables: {} };
+    l.source.tables = l.source.tables || {};
+    l.source.tables[mm.tk] = kept.slice(0, MAX_ROWS);
+    l.meta.dataConfirmed = false;
+    st.dataRev++;
+    st.manual = null;
+    $('dbbDataModal').hidden = true;
+    commit();
+    if (JSON.stringify(l.source).length > 550000) status('Данных много: на платформе они могут не сохраниться (лимит 600 КБ на дашборд), копия останется в браузере');
+  }
+
+  function bindManual() {
+    var overlay = $('dbbDataModal'), body = $('dbbDataBody');
+    var close = function () {
+      if (st.manual && st.manual.dirty && !confirm('Закрыть без сохранения? Введённые данные пропадут.')) return;
+      st.manual = null; overlay.hidden = true;
+    };
+    $('dbbDataClose').addEventListener('click', close);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !overlay.hidden) close(); });
+    body.addEventListener('input', function (e) {
+      var c = e.target.getAttribute && e.target.getAttribute('data-cell');
+      if (!c || !st.manual) return;
+      var p = c.split(':');
+      st.manual.rows[Number(p[0])][p[1]] = e.target.value;
+      st.manual.dirty = true;
+    });
+    /* проверка строки по выходу из ячейки: ошибка подсвечивается сразу */
+    body.addEventListener('change', function (e) {
+      var c = e.target.getAttribute && e.target.getAttribute('data-cell');
+      if (!c || !st.manual) return;
+      var i = Number(c.split(':')[0]);
+      var errs = rowErrors(st.manual.tk, convRow(st.manual.tk, st.manual.rows[i]));
+      var tr = e.target.closest('tr');
+      tr.classList.toggle('has-err', errs.length > 0);
+      if (errs.length) tr.setAttribute('title', errs.join('; ')); else tr.removeAttribute('title');
+      manualMsg(errs.length ? 'Строка ' + (i + 1) + ': ' + errs.join('; ') : '');
+    });
+    body.addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-m]');
+      if (!b || !st.manual) return;
+      var act = b.getAttribute('data-m'), mm = st.manual;
+      if (act === 'add') { mm.rows.push(emptyRow(mm.tk)); drawManual(); var ins = body.querySelectorAll('tbody tr:last-child input'); if (ins[0]) ins[0].focus(); }
+      else if (act === 'paste') { mm.paste = !mm.paste; drawManual(); if (mm.paste) $('dbbPasteText').focus(); }
+      else if (act === 'paste-apply') {
+        var add = pasteRows(mm.tk, $('dbbPasteText').value);
+        if (!add.length) { manualMsg('Не нашлось строк для вставки — скопируйте ячейки из Excel и вставьте в поле.'); return; }
+        mm.rows = mm.rows.filter(function (r) { return !isEmptyRow(r) && !(C.MANUAL[mm.tk].starter && r.plan === '' && r.fact === ''); }).concat(add);
+        mm.paste = false; mm.dirty = true;
+        drawManual();
+        manualMsg('Добавлено строк: ' + add.length + '. Проверьте и нажмите «Сохранить».');
+      } else if (act === 'demo') {
+        if (mm.rows.some(function (r) { return !isEmptyRow(r); }) && !confirm('Заменить содержимое таблицы примером из демо-данных?')) return;
+        mm.rows = demoRows(mm.tk); mm.dirty = true; drawManual();
+        manualMsg('Подставлен пример. Замените значения своими или сохраните, чтобы посмотреть, как выглядит дашборд.');
+      } else if (act === 'csv') downloadTemplate(mm.tk);
+      else if (act === 'clear') {
+        if (!confirm('Очистить все строки таблицы?')) return;
+        mm.rows = [emptyRow(mm.tk), emptyRow(mm.tk), emptyRow(mm.tk)]; mm.dirty = true; drawManual();
+      } else if (act.indexOf('del:') === 0) { mm.rows.splice(Number(act.slice(4)), 1); if (!mm.rows.length) mm.rows.push(emptyRow(mm.tk)); mm.dirty = true; drawManual(); }
+      else if (act === 'save') saveManual();
+      else if (act === 'cancel') close();
+    });
+  }
+
+  /* Шаблон CSV для Excel: разделитель «;», BOM — чтобы Excel открыл кириллицу */
+  function downloadTemplate(tk) {
+    var m = C.MANUAL[tk];
+    var q = function (v) { v = String(v == null ? '' : v); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var lines = [m.cols.map(function (c) { return q(c.title); }).join(';')];
+    (m.starter || []).forEach(function (r) { lines.push(m.cols.map(function (c) { return q(r[c.key]); }).join(';')); });
+    var blob = new Blob(['﻿' + lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'шаблон — ' + m.title + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.parentNode.removeChild(a); }, 500);
+  }
+
+  /* CSV, сохранённый из шаблона: узнаём таблицу ручного ввода по заголовкам */
+  function matchManual(rows) {
+    if (!rows.length) return null;
+    var norm = function (x) { return String(x || '').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim(); };
+    var heads = {};
+    Object.keys(rows[0]).forEach(function (h) { heads[norm(h)] = h; });
+    var best = null;
+    Object.keys(C.MANUAL).forEach(function (tk) {
+      var cols = C.MANUAL[tk].cols;
+      var hit = cols.filter(function (c) { return heads[norm(c.title)]; });
+      var needOk = C.MANUAL[tk].need.some(function (k) { return cols.some(function (c) { return c.key === k && heads[norm(c.title)]; }); });
+      if (needOk && hit.length >= Math.max(2, Math.ceil(cols.length * 0.6)) && (!best || hit.length > best.hit)) best = { tk: tk, hit: hit.length };
+    });
+    if (!best) return null;
+    var m = C.MANUAL[best.tk];
+    return { tk: best.tk, rows: rows.map(function (r) {
+      var o = {};
+      m.cols.forEach(function (c) { var h = heads[norm(c.title)]; o[c.key] = h ? cellValue(c, r[h]) : ''; });
+      return o;
+    }).filter(function (r) { return m.need.some(function (k) { return r[k] !== '' && r[k] != null; }); }) };
   }
 
   function readUpload(file) {
@@ -861,7 +1181,18 @@
             src = { kind: 'upload', name: file.name, shape: 'generic', tables: tables };
           }
         } else {
-          src = { kind: 'upload', name: file.name, shape: 'generic', tables: { data: { title: file.name.replace(/\.[^.]+$/, ''), rows: parseCsv(text) } } };
+          var parsed = parseCsv(text);
+          var match = matchManual(parsed);
+          if (match) {
+            /* файл по шаблону — становится таблицей ручного ввода: её можно поправить и к ней подходят шаблоны ролей */
+            var cur = layout().source;
+            var tables = cur && cur.kind === 'manual' ? clone(cur.tables || {}) : {};
+            tables[match.tk] = match.rows.slice(0, MAX_ROWS);
+            src = { kind: 'manual', name: 'Данные, введённые вручную', tables: tables };
+            setTimeout(function () { status('Файл «' + file.name + '» узнан как таблица «' + C.MANUAL[match.tk].title + '» (' + match.rows.length + ' строк). Поправить данные можно кнопкой «Изменить данные».'); }, 50);
+          } else {
+            src = { kind: 'upload', name: file.name, shape: 'generic', tables: { data: { title: file.name.replace(/\.[^.]+$/, ''), rows: parsed } } };
+          }
         }
         var l = layout();
         if (l.widgets.length && !confirm('Сменить источник данных? Элементы, построенные по старым полям, могут показать предупреждение — их можно перенастроить (⚙).')) return;
@@ -869,6 +1200,7 @@
         l.meta.kinds = {};
         l.meta.dataConfirmed = false;
         st.vizTable = '';
+        st.dataRev++;
         commit();
         if (JSON.stringify(src).length > 550000) status('Файл большой: на платформе он может не сохраниться (лимит 600 КБ на дашборд), копия останется в браузере');
       } catch (err) {
@@ -897,7 +1229,7 @@
     var d = data();
     Object.keys(d).forEach(function (tk) {
       var t = d[tk];
-      out.push({ spec: { type: 'kpi', title: 'Записей: ' + t.title, cfg: { table: tk, agg: 'count' } }, why: 'Объём — первое, что спрашивают о любом портфеле' });
+      out.push({ spec: { type: 'kpi', title: t.title + ': всего', cfg: { table: tk, agg: 'count' } }, why: 'Сколько всего — первое, что спрашивают о любом портфеле' });
       fieldsOf(tk, function (x) { return x.kind === 'money'; }).forEach(function (f) {
         out.push({ spec: { type: 'kpi', title: fTitle(tk, f) + ': всего', cfg: { table: tk, agg: 'sum', field: f } }, why: 'Деньги в сумме — масштаб ресурсов' });
       });
@@ -933,8 +1265,8 @@
     var dateF = firstField(tk, function (x) { return x.kind === 'date'; });
     var pctF = firstField(tk, function (x) { return x.kind === 'pct'; });
     ords.forEach(function (f) {
-      out.push({ spec: { type: 'chart', title: 'Воронка по полю «' + fTitle(tk, f) + '»', size: 'l', cfg: { table: tk, view: 'funnel', groupBy: f, agg: 'count', cumulative: true } }, why: 'Порядковое поле — видно, где теряются объекты между стадиями' });
-      out.push({ spec: { type: 'chart', title: 'Распределение по «' + fTitle(tk, f) + '»', cfg: { table: tk, view: 'columns', groupBy: f, agg: 'count' } }, why: 'Столбцы сохраняют порядок шкалы' });
+      out.push({ spec: { type: 'chart', title: 'Воронка по полю «' + fTitle(tk, f) + '»', size: 'l', cfg: { table: tk, view: 'funnel', groupBy: f, agg: 'count', cumulative: true } }, why: 'Шкала по порядку — видно, где теряются объекты между стадиями' });
+      out.push({ spec: { type: 'chart', title: 'Распределение по «' + fTitle(tk, f) + '»', cfg: { table: tk, view: 'columns', groupBy: f, agg: 'count' } }, why: 'Столбцы идут в порядке шкалы' });
     });
     cats.forEach(function (f) {
       var dn = t.fields[f].distinct;
@@ -948,7 +1280,7 @@
       out.push({ spec: { type: 'chart', title: fTitle(tk, b) + ' в разрезе «' + fTitle(tk, a) + '»', cfg: { table: tk, view: 'stacked', groupBy: a, groupBy2: b, agg: 'count' } }, why: 'Две категории — структура внутри каждой группы' });
       out.push({ spec: { type: 'chart', title: 'Матрица: ' + fTitle(tk, a) + ' × ' + fTitle(tk, b), size: 'l', cfg: { table: tk, view: 'matrix', groupBy: a, groupBy2: b, agg: moneyF ? 'sum' : 'count', field: moneyF } }, why: 'Концентрация на пересечении двух разрезов' });
     }
-    if (moneyF) out.push({ spec: { type: 'chart', title: 'Распределение: ' + fTitle(tk, moneyF), cfg: { table: tk, view: 'histogram', field: moneyF } }, why: 'Типичные значения и выбросы' });
+    if (moneyF) out.push({ spec: { type: 'chart', title: 'Распределение: ' + fTitle(tk, moneyF), cfg: { table: tk, view: 'histogram', field: moneyF } }, why: 'Какие значения типичны, а какие выбиваются' });
     if (moneyF && label) out.push({ spec: { type: 'chart', title: 'Топ по «' + fTitle(tk, moneyF) + '»', cfg: { table: tk, view: 'top', labelField: label, valueField: moneyF, top: 5 } }, why: 'Лидеры — кому уделить внимание в первую очередь' });
     if (pctF && (label || cats[0])) out.push({ spec: { type: 'chart', title: 'Выполнение: ' + fTitle(tk, pctF), cfg: { table: tk, view: 'progress', labelField: label || cats[0], valueField: pctF } }, why: 'Проценты выполнения — светофор по каждому объекту' });
     if (dateF && (label || cats[0])) out.push({ spec: { type: 'chart', title: 'Сроки: ' + fTitle(tk, dateF), size: 'l', cfg: { table: tk, view: 'timeline', labelField: label || cats[0], dateField: dateF, valueField: pctF } }, why: 'Даты — что просрочено и что наступает' });
@@ -993,7 +1325,8 @@
     var groups = {};
     C.VIEWS.forEach(function (v) { (groups[v.group] = groups[v.group] || []).push(v); });
     return '<h3 class="dbb-ph">4. Визуализации</h3>' +
-      '<p class="dbb-tip">Конструктор подбирает графики по типам полей: категории — полосы и кольца, порядковые — столбцы и воронки, даты — сроки, проценты — прогресс.</p>' +
+      '<p class="dbb-tip">Конструктор подбирает графики по типам полей: категории — полосы и кольца, шкалы и годы — столбцы и воронки, даты — сроки, проценты — выполнение. ' +
+      'Под каждым предложением — уменьшенный вид графика на ваших данных.</p>' +
       (keys.length > 1 ? '<div class="chips dbb-tables">' + keys.map(function (k) {
         return '<button type="button" class="chip' + (k === st.vizTable ? ' is-on' : '') + '" data-viztable="' + esc(k) + '">' + esc(d[k].title) + '</button>';
       }).join('') + '</div>' : '') +
@@ -1048,7 +1381,8 @@
 
   function panelLayout(lay) {
     return '<h3 class="dbb-ph">5. Компоновка</h3>' +
-      '<p class="dbb-tip">Перетаскивайте элементы за <b>⠿</b> на холсте или меняйте порядок здесь. Ширина: S — треть, M — половина, L — две трети, XL — вся строка.</p>' +
+      '<p class="dbb-tip">Меняйте порядок стрелками ▲▼ в списке ниже или перетаскивайте элементы на холсте за значок <b>⠿</b>. ' +
+      'Ширину задают кнопки на элементе: S — треть строки, M — половина, L — две трети, XL — вся строка.</p>' +
       '<div class="dbb-quick"><button class="btn-register pg-btn-small" type="button" data-new="section">+ Заголовок раздела</button>' +
       '<button class="btn-register pg-btn-small" type="button" data-autolayout' + (lay.widgets.some(function (w) { return w.type === 'section'; }) ? ' disabled title="Есть разделы — расставьте вручную"' : '') + '>Упорядочить: KPI → графики → таблицы → решения</button></div>' +
       (lay.widgets.length ? '<ol class="dbb-order">' + lay.widgets.map(function (w, i) {
@@ -1102,11 +1436,12 @@
           (c.step && c.level !== 'ok' ? ' <button type="button" class="dbb-link" data-step="' + c.step + '">Исправить →</button>' : '') + '</div></li>';
       }).join('') + '</ul>' +
       '<label class="imdl-check"><input type="checkbox" data-ready' + (lay.meta.ready ? ' checked' : '') + (bad ? ' disabled' : '') + '> Дашборд готов к показу</label>' +
-      '<div class="dbb-sub">Публикация</div><div class="dbb-quick">' +
+      '<div class="dbb-sub">Показ и передача коллегам</div><div class="dbb-quick">' +
       '<button class="btn-primary pg-btn-small" type="button" data-publish="view">Открыть в режиме просмотра</button>' +
       '<button class="btn-register pg-btn-small" type="button" data-publish="print">Печать / PDF</button>' +
       '<button class="btn-register pg-btn-small" type="button" data-publish="export">Экспорт для коллег</button></div>' +
-      '<p class="dbb-hint">Дашборд сохраняется автоматически' + (st.remote ? ' на платформе — он доступен вам с любого компьютера.' : ' в этом браузере.') + ' Чтобы поделиться, отправьте файл экспорта: коллега загрузит его кнопкой «Импорт».</p>' + navHtml();
+      '<p class="dbb-hint">Дашборд сохраняется автоматически' + (st.remote ? ' на платформе — он доступен вам с любого компьютера после входа.' : ' в этом браузере. Войдите на платформу, чтобы он был доступен с любого компьютера.') +
+      ' Ссылки для просмотра пока нет: чтобы поделиться, распечатайте дашборд в PDF или отправьте файл экспорта — коллега загрузит его кнопкой «Импорт» вместе с данными.</p>' + navHtml();
   }
 
   /* ---------- панель шага ---------- */
@@ -1142,12 +1477,19 @@
         });
         commit();
       } else if (b.hasAttribute('data-source')) {
-        if (l.source && l.source.kind === 'upload' && !confirm('Вернуться к демо-данным вуза? Загруженный файл будет удалён из этого дашборда.')) return;
-        l.source = { kind: 'demo' };
+        var want = b.getAttribute('data-source'), was = (l.source && l.source.kind) || 'demo';
+        if (want === was) return;
+        if (was === 'upload' && !confirm('Сменить источник? Загруженный файл будет удалён из этого дашборда.')) return;
+        if (was === 'manual' && !confirm('Сменить источник? Данные, введённые вручную, будут удалены из этого дашборда. ' +
+            'Чтобы сохранить их, сначала сделайте копию дашборда (кнопка «Копия» вверху).')) return;
+        l.source = want === 'manual' ? { kind: 'manual', name: 'Данные, введённые вручную', tables: {} } : { kind: 'demo' };
         l.meta.kinds = {};
+        l.meta.dataConfirmed = false;
         st.vizTable = '';
+        st.dataRev++;
         commit();
-      } else if (b.hasAttribute('data-sug')) {
+      } else if (b.hasAttribute('data-manual-open')) openManual(b.getAttribute('data-manual-open'));
+      else if (b.hasAttribute('data-manual-csv')) downloadTemplate(b.getAttribute('data-manual-csv')); else if (b.hasAttribute('data-sug')) {
         var parts = b.getAttribute('data-sug').split(':');
         var list = parts[0] === 'kpi' ? st.kpiSugs : st.vizSugs;
         var s = list[Number(parts[1])];
@@ -1333,7 +1675,7 @@
     html += fld('Тип визуализации', sel('view', C.VIEWS.map(function (v) { return [v.id, v.group + ': ' + v.title]; }), view), vdef.hint);
     var grp = function (x) { return isGroup(x.kind); };
     if (['bars', 'columns', 'donut', 'funnel', 'stacked', 'matrix'].indexOf(view) >= 0) {
-      html += '<div class="dbb-row">' + fld(view === 'funnel' ? 'Стадии (порядковое поле)' : view === 'matrix' ? 'Строки' : 'Разрез', sel('groupBy', fopts(tk, grp, '—'), c.groupBy));
+      html += '<div class="dbb-row">' + fld(view === 'funnel' ? 'Стадии (шкала: УГТ, этапы, годы)' : view === 'matrix' ? 'Строки' : 'Разрез', sel('groupBy', fopts(tk, grp, '—'), c.groupBy));
       if (view === 'stacked' || view === 'matrix') html += fld(view === 'matrix' ? 'Столбцы' : 'Сегменты', sel('groupBy2', fopts(tk, grp, '—'), c.groupBy2));
       html += '</div><div class="dbb-row">' + fld('Что считаем', sel('agg', [['count', 'Количество'], ['sum', 'Сумма'], ['avg', 'Среднее'], ['max', 'Максимум'], ['min', 'Минимум']], c.agg || 'count')) +
         fld('Поле (для суммы, среднего)', sel('field', fopts(tk, function (x) { return isNum(x.kind); }, '—'), c.field)) + '</div>';
@@ -1515,7 +1857,7 @@
           if (st.bundle.layouts.length >= 20) throw new Error('уже 20 дашбордов — удалите лишний');
           var l = blank(String(d.name || 'Импортированный дашборд').slice(0, 80));
           l.meta = Object.assign(l.meta, d.meta || {}, { step: 'check' });
-          l.source = d.source && d.source.kind ? d.source : { kind: 'demo' };
+          l.source = d.source && ['demo', 'upload', 'manual'].indexOf(d.source.kind) >= 0 ? d.source : { kind: 'demo' };
           l.widgets = d.widgets.filter(function (w) { return w && (C.ELEMENTS[w.type] || w.type === 'metric'); }).map(function (w) {
             return { id: uid('w'), type: w.type === 'metric' ? 'kpi' : w.type, size: SIZE_TITLES[w.size] ? w.size : 'm', title: String(w.title || '').slice(0, 120), cfg: w.cfg && typeof w.cfg === 'object' ? w.cfg : {} };
           });
@@ -1528,6 +1870,10 @@
       reader.readAsText(file, 'utf-8');
     });
     $('dbbSteps').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-step]');
+      if (b) goStep(b.getAttribute('data-step'));
+    });
+    $('dbbCanvasHead').addEventListener('click', function (e) {
       var b = e.target.closest('button[data-step]');
       if (b) goStep(b.getAttribute('data-step'));
     });
@@ -1562,7 +1908,9 @@
   bindPanel();
   bindCanvas();
   bindModal();
+  bindManual();
   fetch('/data/dashboard.json').then(function (r) { return r.json(); }).then(function (raw) {
+    st.demoRaw = raw;
     st.demo = enrichDemo(raw);
   }).catch(function () {
     st.demo = {};
