@@ -8,7 +8,8 @@ frontend/js/polygon_games.js, сценарии в frontend/js/polygon_games_data
 одной проектной сессии одинаковые события, и результаты честно сравнимы.
 
 Сервер только собирает итоги: AIOS_RUNTIME_DIR/polygon_games/{code}.json —
-список {game, team, author, score, outcome, metrics, at}. Одна команда в одной
+список {game, team, role, author, score, outcome, metrics, at}; role — должность,
+выбранная командой (проректор, ЦТТ, акселератор и т. д.). Одна команда в одной
 игре — одна строка (лучший результат и последняя попытка).
 """
 
@@ -70,6 +71,7 @@ def clean_result(raw: dict) -> dict:
         "team": team,
         "score": round(_num(raw.get("score")), 2),
         "outcome": str(raw.get("outcome") or "").strip()[:160],
+        "role": str(raw.get("role") or "").strip()[:120],
         "metrics": metrics,
     }
 
@@ -112,6 +114,7 @@ class GameResultStore:
         row.update({
             "score": res["score"],
             "outcome": res["outcome"],
+            "role": res["role"],
             "metrics": res["metrics"],
             "author": str(author or "")[:80],
             "user_id": user_id,

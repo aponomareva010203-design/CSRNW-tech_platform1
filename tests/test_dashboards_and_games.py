@@ -118,7 +118,8 @@ def test_game_results_keep_best_and_sort():
     client = _client()
     h = _token(client)
     send = lambda team, score: client.post("/api/polygons/games/results", headers=h, json={
-        "code": "spb-26", "game": "spinoff", "team": team, "score": score, "outcome": "Победа", "metrics": {"УГТ": 8}})
+        "code": "spb-26", "game": "spinoff", "team": team, "score": score, "outcome": "Цель достигнута",
+        "role": "Руководитель ЦТТ", "metrics": {"УГТ": 8}})
     assert send("Альфа", 30).status_code == 200
     assert send("Бета", 45).status_code == 200
     row = send("альфа", 12).json()  # та же команда, регистр не важен
@@ -126,6 +127,7 @@ def test_game_results_keep_best_and_sort():
     board = client.get("/api/polygons/games/leaderboard", params={"code": "SPB-26", "game": "spinoff"}).json()
     assert board["code"] == "SPB-26"
     assert [r["team"] for r in board["items"]] == ["Бета", "Альфа"]
+    assert board["items"][0]["role"] == "Руководитель ЦТТ"
     assert "user_id" not in board["items"][0]
     other = client.get("/api/polygons/games/leaderboard", params={"code": "spb-26", "game": "ecosystem"}).json()
     assert other["items"] == []

@@ -8747,6 +8747,17 @@ body:has(.ws-search-overlay:not([hidden])) [data-tooltip]::after { display: none
 .pgs-session .mdl-field { flex: 0 1 260px; }
 .pgs-session input { font: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; }
 .pgs-session .pg-hint { flex: 1 1 260px; margin: 0; }
+.pgs-role-box { display: grid; grid-template-columns: minmax(260px, 420px) minmax(0, 1fr); gap: 16px; align-items: start; margin: 14px 0 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.pgs-role-box select { font: inherit; font-size: 15px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); width: 100%; }
+.pgs-role-box select.is-required { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
+.pgs-role-info { font-size: 14px; line-height: 1.45; }
+.pgs-role-info p { margin-top: 4px; }
+.pgs-card--rec { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+.pgs-rec { align-self: flex-start; font-size: 11.5px; font-weight: 700; color: #fff; background: var(--gold); border-radius: 999px; padding: 2px 9px; }
+.pgs-role { font-size: 13.5px; margin-top: 4px; }
+.pgs-appr { font-size: 11.5px; font-weight: 650; color: var(--amber); }
+.pgs-pending { font-size: 13px; padding: 7px 10px; border-radius: 8px; background: var(--paper); border-left: 3px solid var(--amber); margin-bottom: 8px; }
+@media (max-width: 760px) { .pgs-role-box { grid-template-columns: 1fr; } }
 .pgs-card-role { font-size: 13px; font-weight: 600; color: var(--green-deep); }
 .pgs-work { scroll-margin-top: 16px; }
 .pgs-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start; }

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Полигоны — AIOS · Инновации университета</title>
-<link rel="stylesheet" href="css/style.css?v=20261112b">
+<link rel="stylesheet" href="css/style.css?v=20261112c">
 </head>
 <body>
 <div class="layout">
@@ -85,19 +85,25 @@
   <section class="pgs-section" id="pgsGames">
     <div class="mdl-team-head">
       <div>
-        <h2 class="models-title">Игровые полигоны: деловые игры проректора по инновациям</h2>
-        <p class="mdl-team-note">Симуляторы в форме игры, но решения в них — реальные инструменты вуза: фонд proof-of-concept,
+        <h2 class="models-title">Игровые полигоны: управленческие симуляторы для руководителей инновационной деятельности вуза</h2>
+        <p class="mdl-team-note">Решения в симуляторах — реальные инструменты вуза: фонд proof-of-concept,
           лицензия или доля вуза в спин-оффе, гранты, акселератор, отбор проектов по этапам, положение о РИД, бюджет программы развития.
           В конце каждой игры — <b>управленческий разбор</b>: что сработало, вопросы для обсуждения и чек-лист «что проверить в своём вузе».
           Цифры в моделях условные: они показывают связи между решениями, а не прогнозируют результат.</p>
-        <p class="mdl-team-note">Как играть на сессии: команда из 3–5 человек обсуждает каждое решение вслух, модератор задаёт общий код сессии —
-          у всех команд одинаковые события, итоги собираются в общую таблицу для финального разбора. Одна игра занимает 30–45 минут.</p>
+        <p class="mdl-team-note">Сначала выберите свою роль: от неё зависят рекомендованные симуляторы и наборы ситуаций, ваши полномочия
+          (часть решений идёт через согласование и исполняется позже) и вопросы итогового разбора.</p>
+        <p class="mdl-team-note">На проектной сессии: команда из 3–5 человек обсуждает каждое решение вслух, модератор задаёт общий код сессии —
+          у всех команд одинаковые события, итоги собираются в общую таблицу для финального разбора. Один симулятор занимает 30–45 минут.</p>
       </div>
+    </div>
+    <div class="pgs-role-box">
+      <label class="mdl-field"><span>Ваша роль в вузе</span><select id="pgsRole" aria-describedby="pgsRoleInfo"></select></label>
+      <div class="pgs-role-info" id="pgsRoleInfo" aria-live="polite"></div>
     </div>
     <div class="pgs-session">
       <label class="mdl-field"><span>Код сессии (одинаковый у всех команд)</span><input id="pgsCode" maxlength="32" placeholder="например: SPB-2026"></label>
       <label class="mdl-field"><span>Команда</span><input id="pgsTeam" maxlength="60" placeholder="название команды"></label>
-      <p class="pg-hint">Без кода можно играть самостоятельно — без общей таблицы. Результат в таблицу отправляется после входа на платформу.</p>
+      <p class="pg-hint">Без кода можно работать самостоятельно — без общей таблицы. Результат в таблицу отправляется после входа на платформу.</p>
     </div>
     <div class="mdl-grid" id="pgsGrid"></div>
   </section>
@@ -208,8 +214,8 @@
 <script src="js/agent_views.js?v=20260929m"></script>
 <script src="js/thinking.js?v=20260925zq"></script>
 <script src="js/polygons.js?v=20261029a"></script>
-<script src="js/polygon_games_data.js?v=20261112b"></script>
-<script src="js/polygon_games.js?v=20261112b"></script>
+<script src="js/polygon_games_data.js?v=20261112c"></script>
+<script src="js/polygon_games.js?v=20261112c"></script>
 <script src="js/workspace.js?v=20261029a"></script>
 </body>
 </html>
