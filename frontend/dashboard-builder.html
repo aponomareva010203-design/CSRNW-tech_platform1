@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Конструктор дашборда — AIOS · Инновации университета</title>
-<link rel="stylesheet" href="css/style.css?v=20261112a">
+<link rel="stylesheet" href="css/style.css?v=20261112b">
 </head>
 <body>
 <div class="layout">
@@ -71,9 +71,19 @@
   <section class="section-head">
     <a class="backlink" href="index.html">← Пример дашборда проректора</a>
     <h1>Конструктор дашборда</h1>
-    <p class="section-lead">Соберите аналитический или управленческий дашборд под свою роль за шесть шагов:
-      цель и аудитория → данные → ключевые показатели → визуализации → компоновка → проверка.
-      Конструктор начинает с чистого листа и на каждом шаге подсказывает подходящие элементы, шаблоны и типы графиков.</p>
+    <p class="section-lead">Соберите дашборд под свою роль за шесть шагов: цель → данные → показатели → графики → компоновка → проверка.
+      Данные можно взять из примера, <b>ввести вручную</b> в готовые таблицы или загрузить файлом из Excel.
+      Всё сохраняется автоматически, на холст ничего не попадает без вашего нажатия.</p>
+    <details class="dbb-help dbb-quickstart">
+      <summary>Как собрать готовый дашборд за 5 минут</summary>
+      <ol>
+        <li><b>Шаг 1.</b> Выберите шаблон роли — например, «Проректор по инновациям» или «Мониторинг программы развития».</li>
+        <li><b>Шаг 2.</b> Выберите «Ввести свои данные вручную» и заполните одну-две таблицы. Можно скопировать строки из Excel.
+          Чтобы сначала посмотреть, как это выглядит, нажмите в таблице «Подставить пример».</li>
+        <li>Там же нажмите «Собрать дашборд по шаблону» — на холсте появятся показатели и графики по вашим данным.</li>
+        <li>Поправьте цели и подписи кнопкой ⚙ на элементе, проверьте дашборд на шаге 6 и распечатайте или сохраните в PDF.</li>
+      </ol>
+    </details>
     <div class="rule"></div>
   </section>
 
@@ -109,6 +119,15 @@
 
   <div class="dash-tooltip" id="dbbTip" hidden></div>
 
+  <!-- Ручной ввод данных: таблицы из AIOS_DASH_CATALOG.MANUAL -->
+  <div class="modal-overlay" id="dbbDataModal" hidden>
+    <div class="modal modal--dbbdata" role="dialog" aria-modal="true" aria-labelledby="dbbDataTitle">
+      <button class="modal-close" id="dbbDataClose" type="button" aria-label="Закрыть">✕</button>
+      <h2 id="dbbDataTitle">Ввод данных</h2>
+      <div class="dbb-data-body" id="dbbDataBody"></div>
+    </div>
+  </div>
+
   <!-- Настройка элемента дашборда -->
   <div class="modal-overlay" id="dbbModal" hidden>
     <div class="modal modal--dbb" role="dialog" aria-modal="true" aria-labelledby="dbbModalTitle">
@@ -134,8 +153,8 @@
 <script src="js/auth.js?v=20261029a"></script>
 <script src="js/agent_views.js?v=20260929m"></script>
 <script src="js/thinking.js?v=20260925zq"></script>
-<script src="js/dashboard_catalog.js?v=20261112a"></script>
-<script src="js/dashboard_builder.js?v=20261112a"></script>
+<script src="js/dashboard_catalog.js?v=20261112b"></script>
+<script src="js/dashboard_builder.js?v=20261112b"></script>
 <script src="js/workspace.js?v=20261029a"></script>
 </body>
 </html>

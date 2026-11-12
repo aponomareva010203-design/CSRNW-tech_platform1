@@ -5,7 +5,8 @@
 аудитория → источник данных → показатели → визуализации → компоновка →
 проверка. Раскладка описывает элементы (KPI, цели, графики, таблицы, решения,
 заметки, разделы), их порядок и размер; meta — цель, аудитория, вопросы,
-шаг сборки; source — источник данных: демо-данные вуза (data/dashboard.json)
+шаг сборки; source — источник данных: демо-данные вуза (data/dashboard.json),
+таблицы, введённые вручную (kind "manual": {tables: {projects: [...], ...}}),
 или свои загруженные таблицы (CSV/JSON) — их строки хранятся в раскладке,
 чтобы дашборд открывался с любого компьютера.
 
@@ -87,7 +88,7 @@ def clean_layout(raw) -> dict:
     if len(json.dumps(meta, ensure_ascii=False)) > MAX_META_BYTES:
         raise DashboardError("Слишком длинное описание цели дашборда")
     source = raw.get("source") if isinstance(raw.get("source"), dict) else {"kind": "demo"}
-    if source.get("kind") not in ("demo", "upload"):
+    if source.get("kind") not in ("demo", "upload", "manual"):
         source = {"kind": "demo"}
     if len(json.dumps(source, ensure_ascii=False)) > MAX_SOURCE_BYTES:
         raise DashboardError("Загруженные данные дашборда больше 600 КБ — сократите таблицу или храните её только в браузере")

@@ -76,6 +76,12 @@ def test_layout_keeps_meta_and_source():
     assert second["source"] == {"kind": "demo"}
 
 
+def test_manual_source_is_kept():
+    rows = [{"name": "Лицензионные договоры", "year": 2026, "plan": 10, "fact": 7, "unit": "ед."}]
+    data = dashboards.clean_bundle({"layouts": [{"name": "Вручную", "source": {"kind": "manual", "tables": {"indicators": rows}}}]})
+    assert data["layouts"][0]["source"] == {"kind": "manual", "tables": {"indicators": rows}}
+
+
 def test_too_big_source_is_rejected():
     rows = [{"text": "x" * 100} for _ in range(7000)]
     with pytest.raises(dashboards.DashboardError):
